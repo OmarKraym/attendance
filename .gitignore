@@ -1,0 +1,4 @@
+# Never publish backups: they contain employee data
+attendance-backup-*.json
+*.json.bak
+.DS_Store

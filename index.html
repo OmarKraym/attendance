@@ -1,0 +1,2647 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1B2430">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="الحضور">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>نظام مراقبة الحضور والانصراف</title>
+<!-- Everything is local, so the app opens and works fully offline. -->
+<link href="fonts/fonts.css" rel="stylesheet">
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="config.js"></script>
+<style>
+  :root{
+    --bg:#F4F5F7; --panel:#FFFFFF; --ink:#1B2430; --ink-soft:#5A6472; --line:#DFE3E8;
+    --brand:#145C56; --brand-soft:#E4EFEE;
+    --delay:#B3401F; --delay-soft:#FBEAE4;
+    --ot:#1D6E3C; --ot-soft:#E7F4EB;
+    --absent:#6B4A9E; --absent-soft:#EFE8F7;
+    --excused:#8A6D1B; --excused-soft:#FBF3DD;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:'Cairo',Tahoma,Arial,sans-serif;font-size:15px;line-height:1.6;}
+  header.app-head{background:var(--ink);color:#fff;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  header.app-head h1{font-size:20px;font-weight:800;margin:0;}
+  header.app-head .sub{color:#B9C2CC;font-size:13px;margin-top:4px;}
+  .settings-inline{display:flex;gap:18px;align-items:center;flex-wrap:wrap;}
+  .head-tools{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+  details.settings-box > summary{cursor:pointer;color:#C7CFD7;font-size:13px;font-weight:700;list-style:none;user-select:none;}
+  details.settings-box > summary::-webkit-details-marker{display:none;}
+  details.settings-box > summary::before{content:'⚙ ';}
+  details.settings-box[open] > summary{margin-bottom:8px;}
+  #installBtn{background:#fff;color:var(--ink);}
+  .sync-badge{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:3px 10px;border-radius:14px;font-size:12px;font-weight:700;background:#2A3542;color:#DDE3E9;border:none;cursor:pointer;font-family:inherit;}
+  .sync-badge.ok{background:#1F4D3A;color:#CDEBD9;} .sync-badge.pending,.sync-badge.syncing{background:#4A3F1A;color:#F3E2A9;}
+  .sync-badge.offline{background:#3A4653;color:#DDE3E9;} .sync-badge.error,.sync-badge.auth{background:#5A2A1F;color:#F6D3C8;}
+  #loginOverlay{position:fixed;inset:0;z-index:100;background:var(--bg);display:none;align-items:center;justify-content:center;padding:16px;}
+  #loginOverlay .box{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;}
+  #loginOverlay h2{margin:0 0 4px;font-size:18px;} #loginOverlay p{margin:0 0 16px;color:var(--ink-soft);font-size:13px;}
+  #loginOverlay .field{margin-bottom:12px;} #loginOverlay input{width:100%;font-size:16px;}
+  #loginOverlay .err{color:var(--delay);font-size:13px;min-height:18px;margin-bottom:8px;}
+  #choiceModal{position:fixed;inset:0;z-index:110;background:rgba(27,36,48,.55);display:none;align-items:center;justify-content:center;padding:16px;}
+  #choiceModal .box{width:100%;max-width:440px;background:var(--panel);border-radius:14px;padding:20px;}
+  #choiceModal h3{margin:0 0 8px;font-size:16px;} #choiceModal .txt{font-size:13.5px;color:var(--ink);margin-bottom:16px;white-space:pre-line;}
+  #choiceModal .btns{display:flex;flex-direction:column;gap:8px;}
+  .app-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .app-banner .x{background:none;border:none;font-size:18px;cursor:pointer;color:inherit;padding:0 6px;}
+  .settings-inline label{font-size:12.5px;color:#C7CFD7;display:flex;flex-direction:column;gap:4px;}
+  .settings-inline input{width:70px;padding:6px 8px;border-radius:6px;border:1px solid #3A4653;background:#232D38;color:#fff;font-family:inherit;font-size:14px;}
+  .settings-inline label.checkbox-label{flex-direction:row;align-items:center;gap:6px;}
+  .settings-inline label.checkbox-label input{width:auto;padding:0;accent-color:var(--brand);}
+  nav.tabs{display:flex;gap:2px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 24px;overflow-x:auto;}
+  nav.tabs button{border:none;background:transparent;padding:14px 18px;font-family:inherit;font-size:14.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;}
+  nav.tabs button.active{color:var(--brand);border-bottom-color:var(--brand);}
+  main{padding:24px 28px 60px;max-width:1180px;margin:0 auto;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:18px;}
+  .panel h2{font-size:16px;margin:0 0 14px;font-weight:700;}
+  .panel h2 small{font-weight:400;color:var(--ink-soft);font-size:12.5px;margin-inline-start:8px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;}
+  .field{display:flex;flex-direction:column;gap:5px;min-width:140px;}
+  .field.grow{flex:1;}
+  .field label{font-size:12px;color:var(--ink-soft);font-weight:600;}
+  .field.checkbox{flex-direction:row;align-items:center;gap:7px;padding-bottom:8px;}
+  .field.checkbox input{width:16px;height:16px;}
+  .field.checkbox label{font-size:13px;color:var(--ink);font-weight:600;}
+  .status-block{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:10px 12px;background:#FAFBFC;border:1px dashed var(--line);border-radius:8px;margin-bottom:12px;}
+  input,select{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);}
+  input:focus,select:focus{outline:2px solid var(--brand-soft);border-color:var(--brand);}
+  button.btn{font-family:inherit;font-size:14px;font-weight:700;padding:9px 18px;border-radius:7px;border:none;cursor:pointer;background:var(--brand);color:#fff;}
+  button.btn.secondary{background:#fff;color:var(--ink);border:1px solid var(--line);}
+  button.btn.warn{background:#fff;color:var(--excused);border:1px solid var(--excused-soft);}
+  button.btn.danger{background:#fff;color:var(--delay);border:1px solid var(--delay-soft);padding:6px 12px;font-size:12.5px;}
+  button.btn.small{padding:6px 12px;font-size:12.5px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th,td{padding:9px 10px;text-align:start;border-bottom:1px solid var(--line);}
+  th{background:#FAFBFC;font-weight:700;color:var(--ink-soft);font-size:12.5px;}
+  tbody tr:hover{background:#FAFBFC;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:700;}
+  .pill.delay{background:var(--delay-soft);color:var(--delay);}
+  .pill.ot{background:var(--ot-soft);color:var(--ot);}
+  .pill.absent{background:var(--absent-soft);color:var(--absent);}
+  .pill.excused{background:var(--excused-soft);color:var(--excused);}
+  .pill.zero{background:#EEF0F2;color:var(--ink-soft);}
+  .empty-note{color:var(--ink-soft);font-size:13px;padding:16px 0;text-align:center;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;}
+  .kpi .val{font-size:24px;font-weight:800;}
+  .kpi .lbl{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .kpi.delay .val{color:var(--delay);} .kpi.ot .val{color:var(--ot);} .kpi.absent .val{color:var(--absent);} .kpi.pct .val{color:var(--brand);} .kpi.excused-kpi .val{color:var(--excused);}
+  .exclusion-box{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:14px;background:#FAFBFC;}
+  .exclusion-box h3{font-size:14px;margin:0 0 8px;}
+  .weekday-checks{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 4px;}
+  .weekday-checks label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;}
+  .weekday-checks input[type=checkbox]{width:16px;height:16px;padding:0;accent-color:var(--brand);}
+  .wd-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;}
+  .wd-item input.wd-allow,.wd-item input.wd-allow-early{width:104px;padding:4px 6px;}
+  .hint{background:var(--brand-soft);border:1px solid #CFE4E1;color:#0E4642;padding:10px 14px;border-radius:8px;font-size:12.5px;margin-bottom:14px;}
+  .hint.warn{background:var(--excused-soft);border-color:#E8D69A;color:#5C4A0F;}
+  tfoot td{font-weight:700;background:#FAFBFC;}
+  .stat-table td:first-child{color:var(--ink-soft);width:60%;}
+  .stat-table td:last-child{font-weight:700;text-align:end;}
+  .emp-checklist{display:flex;flex-wrap:wrap;gap:8px;max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;background:#FAFBFC;}
+  .emp-checklist label{display:flex;align-items:center;gap:6px;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 10px;}
+  .view-toggle{display:flex;gap:6px;}
+  .view-toggle button{padding:7px 14px;font-size:13px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;font-family:inherit;font-weight:600;}
+  .view-toggle button.active{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .import-log{max-height:220px;overflow:auto;font-size:12.5px;}
+  .import-log li{margin-bottom:4px;}
+  .date-chip{font-family:inherit;font-size:12px;font-weight:600;border:1px solid #E8D69A;background:var(--excused-soft);color:#5C4A0F;border-radius:14px;padding:2px 9px;margin:2px;cursor:pointer;}
+  .date-chip:hover{border-color:var(--excused);}
+  .meter{height:10px;background:#EEF0F2;border-radius:6px;overflow:hidden;margin:6px 0 4px;}
+  .meter > span{display:block;height:100%;background:var(--brand);}
+  .meter.high > span{background:var(--delay);}
+  #backupBanner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .exit-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:8px;margin-top:8px;}
+  .exit-row .field{min-width:110px;}
+  .exit-row .field.checkbox{min-width:auto;}
+  .table-scroll{overflow-x:auto;}
+  table.grouped th,table.grouped td{text-align:center;white-space:nowrap;}
+  table.grouped th:first-child,table.grouped td:first-child{text-align:start;}
+  table.grouped thead tr:nth-child(2) th{white-space:normal;min-width:46px;font-size:11.5px;line-height:1.35;padding:7px 5px;}
+  table.grouped td{padding:8px 5px;}
+  table.grouped th.grp{background:#EEF2F4;color:var(--ink);font-size:13px;border-bottom:2px solid var(--line);}
+  table.grouped .gs{border-inline-start:2px solid var(--line);}
+  .kpi .sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .pill.mid{background:#E6EEF8;color:#2B5C97;}
+  #reportCustomView{page:wide;}
+  /* ---------- Phone layout ---------- */
+  @media (max-width:700px){
+    body{font-size:14.5px;}
+    header.app-head{padding:12px 14px calc(12px);padding-top:max(12px, env(safe-area-inset-top));gap:8px;}
+    header.app-head h1{font-size:17px;}
+    header.app-head .sub{font-size:11.5px;margin-top:2px;}
+    .head-tools{width:100%;align-items:stretch;}
+    .settings-inline{flex-direction:column;align-items:stretch;gap:10px;}
+    .settings-inline label{font-size:13px;}
+    .settings-inline input[type=number]{width:100%;font-size:16px;}
+    nav.tabs{position:sticky;top:0;z-index:20;padding:0 4px;box-shadow:0 2px 6px rgba(0,0,0,.05);}
+    nav.tabs button{padding:12px 11px;font-size:13.5px;}
+    main{padding:12px 10px 90px;padding-bottom:max(90px, env(safe-area-inset-bottom));}
+    .panel{padding:14px 12px;border-radius:12px;margin-bottom:12px;}
+    .panel h2{font-size:15px;} .panel h2 small{display:block;margin:2px 0 0;}
+    .row,.status-block{gap:8px;}
+    .field{min-width:0;flex:1 1 calc(50% - 8px);}
+    .field.grow,.field.checkbox{flex-basis:100%;}
+    .field > input:not([type=checkbox]),.field > select{width:100%;min-width:0;}
+    input,select{font-size:16px;} /* 16px stops iPhone from zooming into the field */
+    button.btn{min-height:42px;}
+    button.btn.small,button.btn.danger{min-height:36px;}
+    .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    .kpi{padding:12px;} .kpi .val{font-size:20px;}
+    .view-toggle{flex-wrap:wrap;width:100%;} .view-toggle button{flex:1 1 auto;}
+    .wd-item{flex:1 1 100%;flex-wrap:wrap;} .wd-item input.wd-allow,.wd-item input.wd-allow-early{flex:1 1 90px;width:auto;}
+    .exit-row .field{flex:1 1 calc(50% - 8px);}
+    .exit-row .field.grow{flex-basis:100%;}
+    .hint{font-size:12.5px;}
+    /* Wide tables scroll sideways inside their panel */
+    .panel table:not(#recordsTable):not(.stat-table){display:block;overflow-x:auto;white-space:nowrap;}
+    .table-scroll table{display:table !important;}
+    /* Records become cards: easier to read and edit with a thumb */
+    #recordsTable thead{display:none;}
+    #recordsTable,#recordsTable tbody,#recordsTable tr,#recordsTable td{display:block;width:100%;}
+    #recordsTable tr{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;padding:8px 12px;background:#fff;}
+    #recordsTable td{border:none;padding:4px 0;display:flex;gap:12px;justify-content:space-between;align-items:flex-start;}
+    #recordsTable td::before{content:attr(data-label);color:var(--ink-soft);font-weight:600;font-size:12px;flex:none;}
+    #recordsTable td.rec-detail{display:block;font-size:12.5px;color:var(--ink-soft);}
+    #recordsTable td.rec-detail::before{display:block;margin-bottom:2px;}
+    #recordsTable td.rec-actions{justify-content:flex-start;padding-top:8px;}
+    #recordsTable td.rec-actions::before{content:none;}
+    #recordsTable td.rec-actions .btn{flex:1;}
+  }
+  @page wide{size:A4 landscape;margin:10mm;}
+  @media print{
+    header.app-head,nav.tabs,.no-print{display:none !important;}
+    body{background:#fff;} main{padding:0;max-width:none;}
+    .panel{border:none;padding:0;margin-bottom:12px;}
+    @page{size:A4;margin:14mm;}
+    table{font-size:11.5px;}
+    th{background:#EEE !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .table-scroll{overflow:visible;}
+    table.grouped{font-size:10px;} table.grouped th,table.grouped td{padding:5px 4px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="app-head">
+  <div>
+    <h1>نظام مراقبة الحضور والانصراف</h1>
+    <div class="sub" id="appSub">تخزين محلي في المتصفح — لا يتطلب اتصال بالإنترنت</div>
+    <button class="sync-badge no-print" id="syncBadge" hidden onclick="openSyncPanel()"></button>
+  </div>
+  <div class="head-tools no-print">
+  <button class="btn small" id="installBtn" hidden onclick="installApp()">📲 تثبيت التطبيق</button>
+  <details class="settings-box" id="settingsBox" open>
+  <summary>الإعدادات</summary>
+  <div class="settings-inline">
+    <label>فترة السماح (دقيقة)<input type="number" id="graceInput" min="0" value="15"></label>
+    <label class="checkbox-label"><input type="checkbox" id="countEarlyLeaveInput" checked> احتساب الخروج المبكر ضمن نسبة الالتزام</label>
+    <label class="checkbox-label"><input type="checkbox" id="countAbsenceInput"> احتساب الغياب غير المعتمد ضمن نسبة الالتزام</label>
+    <label class="checkbox-label"><input type="checkbox" id="countMidExitInput" checked> احتساب الخروج أثناء الدوام غير المعتمد ضمن نسبة الالتزام</label>
+  </div>
+  </details>
+  </div>
+</header>
+
+<nav class="tabs no-print">
+  <button class="active" data-tab="shifts">الورديات</button>
+  <button data-tab="employees">الموظفون</button>
+  <button data-tab="entry">تسجيل الحضور</button>
+  <button data-tab="report">التقرير</button>
+  <button data-tab="data">الاستيراد والنسخ الاحتياطي</button>
+</nav>
+
+<div id="loginOverlay">
+  <div class="box">
+    <h2>تسجيل الدخول</h2>
+    <p>البيانات مشتركة بين كل أجهزتك عبر السحابة. سجّل الدخول بالبريد الذي أضافه المسؤول.</p>
+    <div class="field"><label>البريد الإلكتروني</label><input id="lg_email" type="email" autocomplete="username" dir="ltr"></div>
+    <div class="field"><label>كلمة المرور</label><input id="lg_pass" type="password" autocomplete="current-password" dir="ltr"
+      onkeydown="if(event.key==='Enter') doLogin()"></div>
+    <div class="err" id="lg_err"></div>
+    <button class="btn" style="width:100%;" id="lg_btn" onclick="doLogin()">دخول</button>
+  </div>
+</div>
+<div id="choiceModal"><div class="box"><h3 id="cm_title"></h3><div class="txt" id="cm_text"></div><div class="btns" id="cm_btns"></div></div></div>
+
+<main>
+  <div id="readOnlyBanner" class="hint warn no-print" style="display:none;">صلاحيتك <strong>عرض فقط</strong>: يمكنك تصفح البيانات والتقارير، وأي تعديل تجريه على هذا الجهاز يبقى عليه فقط ولن يُرفع إلى السحابة.</div>
+  <div id="updateBanner" class="hint app-banner no-print" style="display:none;">
+    <span>نسخة جديدة من التطبيق جاهزة. احفظ أي سجل قيد الإدخال ثم حدّث.</span>
+    <button class="btn small" onclick="applyUpdate()">تحديث الآن</button>
+  </div>
+  <div id="iosInstallHint" class="hint app-banner no-print" style="display:none;">
+    <span>على iPhone: اضغط زر <strong>المشاركة</strong> ⬆️ ثم <strong>«إضافة إلى الشاشة الرئيسية»</strong>. بدون ذلك قد يحذف Safari البيانات إذا لم تفتح التطبيق لعدة أيام.</span>
+    <button class="x" onclick="dismissIosHint()" aria-label="إغلاق">×</button>
+  </div>
+  <div id="backupBanner" class="hint warn no-print" style="display:none;"></div>
+
+  <!-- SHIFTS -->
+  <section id="tab-shifts">
+    <div class="panel">
+      <h2>إضافة وردية جديدة <small>السبت–الخميس، الجمعة عطلة دائمًا</small></h2>
+      <div class="row">
+        <div class="field grow"><label>اسم الوردية</label><input id="sh_name" placeholder="مثال: الوردية الصباحية"></div>
+        <div class="field"><label>بداية الدوام</label><input id="sh_start" type="time" value="08:00"></div>
+        <div class="field"><label>نهاية الدوام (السبت–الأربعاء)</label><input id="sh_end" type="time" value="16:00"></div>
+        <div class="field"><label>نهاية الدوام (الخميس)</label><input id="sh_endThu" type="time" value="14:00"></div>
+        <div class="field"><button class="btn" onclick="addShift()">إضافة</button></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>الورديات المسجلة</h2>
+      <table><thead><tr><th>الاسم</th><th>بداية الدوام</th><th>نهاية (سبت–أربعاء)</th><th>نهاية (خميس)</th><th></th></tr></thead>
+      <tbody id="shiftsBody"></tbody></table>
+      <div class="empty-note" id="shiftsEmpty" style="display:none;">لا توجد ورديات بعد</div>
+    </div>
+    <div class="panel">
+      <h2>العطل الرسمية <small>تسري على كل الموظفين — لا تُحسب أيامها ولا تظهر كأيام ناقصة</small></h2>
+      <div class="row">
+        <div class="field"><label>من تاريخ</label><input id="hd_from" type="date"></div>
+        <div class="field"><label>إلى تاريخ (اختياري)</label><input id="hd_to" type="date"></div>
+        <div class="field grow"><label>اسم العطلة</label><input id="hd_name" placeholder="مثال: عيد الفطر"></div>
+        <div class="field"><button class="btn" onclick="addHoliday()">إضافة</button></div>
+      </div>
+      <div class="hint">أي سجل يقع في عطلة رسمية يبقى محفوظًا لكنه لا يدخل في أي حساب. أيام الجمعة داخل المدى تُتجاهل تلقائيًا.</div>
+      <table><thead><tr><th>التاريخ</th><th>اليوم</th><th>العطلة</th><th></th></tr></thead>
+      <tbody id="holidaysBody"></tbody></table>
+      <div class="empty-note" id="holidaysEmpty" style="display:none;">لا توجد عطل رسمية مسجلة</div>
+    </div>
+  </section>
+
+  <!-- EMPLOYEES -->
+  <section id="tab-employees" style="display:none;">
+    <div class="panel">
+      <h2 id="employeeFormTitle">إضافة موظف</h2>
+      <div class="row">
+        <div class="field"><label>رمز الموظف</label><input id="em_code" placeholder="مثال: EMP001"></div>
+        <div class="field grow"><label>اسم الموظف</label><input id="em_name" placeholder="الاسم الكامل"></div>
+        <div class="field grow"><label>الوردية</label><select id="em_shift"></select></div>
+        <div class="field"><label>تاريخ المباشرة (اختياري)</label><input id="em_startDate" type="date"></div>
+        <div class="field"><button class="btn" id="em_saveBtn" onclick="addEmployee()">إضافة</button></div>
+        <div class="field" id="em_cancelWrap" style="display:none;"><button class="btn secondary" onclick="cancelEmployeeEdit()">إلغاء التعديل</button></div>
+      </div>
+      <div class="exclusion-box">
+        <h3>استثناءات نسبة الالتزام</h3>
+        <div class="hint warn" style="margin-bottom:6px;">اختر اليوم، ثم حدّد (اختياريًا) <strong>المدة المسموحة للتأخير</strong> و/أو <strong>المدة المسموحة للخروج المبكر</strong> بالدقائق (مثال: 120 = ساعتان). المدة المسموحة لا تُحسب، وما زاد عنها فقط يُحسب. إذا تركت الخانتين فارغتين يُستبعد اليوم كاملًا من التقارير ومن حساب نسبة الالتزام. إذا حدّدت مدة لأحدهما فقط يبقى اليوم في الحساب ويُحسب الآخر بشكل طبيعي، وكذلك الغياب. سجلات الحضور لا تُحذف أبدًا وتبقى في تبويب السجلات. يسري هذا على كل السجلات الحالية والمستقبلية. يوم الجمعة مستبعد تلقائيًا.</div>
+        <div class="weekday-checks" id="em_excludedWeekdays">
+          <div class="wd-item"><label><input type="checkbox" value="6"> السبت</label><input type="number" class="wd-allow" min="0" max="600" step="5" placeholder="تأخير (د)" title="المدة المسموحة للتأخير بالدقائق" disabled><input type="number" class="wd-allow-early" min="0" max="600" step="5" placeholder="خروج مبكر (د)" title="المدة المسموحة للخروج المبكر بالدقائق" disabled></div>
+          <div class="wd-item"><label><input type="checkbox" value="0"> الأحد</label><input type="number" class="wd-allow" min="0" max="600" step="5" placeholder="تأخير (د)" title="المدة المسموحة للتأخير بالدقائق" disabled><input type="number" class="wd-allow-early" min="0" max="600" step="5" placeholder="خروج مبكر (د)" title="المدة المسموحة للخروج المبكر بالدقائق" disabled></div>
+          <div class="wd-item"><label><input type="checkbox" value="1"> الاثنين</label><input type="number" class="wd-allow" min="0" max="600" step="5" placeholder="تأخير (د)" title="المدة المسموحة للتأخير بالدقائق" disabled><input type="number" class="wd-allow-early" min="0" max="600" step="5" placeholder="خروج مبكر (د)" title="المدة المسموحة للخروج المبكر بالدقائق" disabled></div>
+          <div class="wd-item"><label><input type="checkbox" value="2"> الثلاثاء</label><input type="number" class="wd-allow" min="0" max="600" step="5" placeholder="تأخير (د)" title="المدة المسموحة للتأخير بالدقائق" disabled><input type="number" class="wd-allow-early" min="0" max="600" step="5" placeholder="خروج مبكر (د)" title="المدة المسموحة للخروج المبكر بالدقائق" disabled></div>
+          <div class="wd-item"><label><input type="checkbox" value="3"> الأربعاء</label><input type="number" class="wd-allow" min="0" max="600" step="5" placeholder="تأخير (د)" title="المدة المسموحة للتأخير بالدقائق" disabled><input type="number" class="wd-allow-early" min="0" max="600" step="5" placeholder="خروج مبكر (د)" title="المدة المسموحة للخروج المبكر بالدقائق" disabled></div>
+          <div class="wd-item"><label><input type="checkbox" value="4"> الخميس</label><input type="number" class="wd-allow" min="0" max="600" step="5" placeholder="تأخير (د)" title="المدة المسموحة للتأخير بالدقائق" disabled><input type="number" class="wd-allow-early" min="0" max="600" step="5" placeholder="خروج مبكر (د)" title="المدة المسموحة للخروج المبكر بالدقائق" disabled></div>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:14px;">رمز الموظف اختياري لكنه مطلوب لمطابقة السجلات تلقائيًا عند الاستيراد من Excel.</div>
+    </div>
+    <div class="panel">
+      <h2>الموظفون <small>اضغط "تعديل" لتحميل بيانات الموظف في النموذج أعلاه</small></h2>
+      <table><thead><tr><th>رمز الموظف</th><th>الاسم</th><th>الوردية</th><th>تاريخ المباشرة</th><th>استثناءات الالتزام</th><th></th></tr></thead>
+      <tbody id="employeesBody"></tbody></table>
+      <div class="empty-note" id="employeesEmpty" style="display:none;">لا يوجد موظفون بعد</div>
+    </div>
+  </section>
+
+  <!-- ENTRY -->
+  <section id="tab-entry" style="display:none;">
+    <div class="panel">
+      <h2 id="entryTitle">تسجيل يوم حضور</h2>
+      <div class="row">
+        <div class="field grow"><label>الموظف</label><select id="rc_emp"></select></div>
+        <div class="field"><label>التاريخ</label><input id="rc_date" type="date"></div>
+        <div class="field"><label>الحالة</label>
+          <select id="rc_status" onchange="toggleStatusFields()">
+            <option value="present">حاضر</option>
+            <option value="absent">غائب</option>
+            <option value="leave">إجازة</option>
+            <option value="holiday">عطلة رسمية</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="status-block" id="rc_presentWrap">
+        <div class="field"><label>وقت الحضور</label><input id="rc_in" type="time"></div>
+        <div class="field"><label>وقت الانصراف</label><input id="rc_out" type="time"></div>
+      </div>
+      <div class="status-block" id="rc_delayApprovalWrap">
+        <div class="field checkbox"><input type="checkbox" id="rc_delayApproved"><label for="rc_delayApproved">اعتماد التأخير (إن وُجد)</label></div>
+        <div class="field"><label>المدة المعتمدة للتأخير (دقيقة)</label><input type="number" id="rc_delayMinutes" min="0" max="600" step="5" placeholder="فارغ = كل المدة" disabled></div>
+        <div class="field checkbox"><input type="checkbox" id="rc_delayExcluded" disabled><label for="rc_delayExcluded">استثناء هذا التأخير من نسبة الالتزام</label></div>
+        <div class="field grow"><label>المعتمِد</label><input id="rc_delayApprovedBy" placeholder="اسم المسؤول"></div>
+        <div class="field grow"><label>ملاحظة الاعتماد</label><input id="rc_delayNote" placeholder="سبب الاعتماد / التأخير"></div>
+      </div>
+      <div class="status-block" id="rc_earlyLeaveApprovalWrap">
+        <div class="field checkbox"><input type="checkbox" id="rc_earlyLeaveApproved"><label for="rc_earlyLeaveApproved">اعتماد الخروج المبكر (إن وُجد)</label></div>
+        <div class="field"><label>المدة المعتمدة للخروج (دقيقة)</label><input type="number" id="rc_earlyLeaveMinutes" min="0" max="600" step="5" placeholder="فارغ = كل المدة" disabled></div>
+        <div class="field checkbox"><input type="checkbox" id="rc_earlyLeaveExcluded" disabled><label for="rc_earlyLeaveExcluded">استثناء هذا الخروج من نسبة الالتزام</label></div>
+        <div class="field grow"><label>المعتمِد</label><input id="rc_earlyLeaveApprovedBy" placeholder="اسم المسؤول"></div>
+        <div class="field grow"><label>ملاحظة الاعتماد</label><input id="rc_earlyLeaveNote" placeholder="سبب الاعتماد / الخروج المبكر"></div>
+        <div style="width:100%;font-size:11.5px;color:var(--ink-soft);">المدة المعتمدة: إذا حُدّدت يُعتمد هذا القدر فقط من الخروج المبكر، وما زاد عنه يُعتبر بدون إذن (اتركها فارغة لاعتماد كل المدة). خيار الاستثناء يتطلب اعتماد الخروج المبكر ويخص هذا السجل فقط: لا يظهر الجزء المعتمد في التقارير ولا تُخصم دقائقه من نسبة الالتزام.</div>
+      </div>
+
+      <div class="status-block" id="rc_exitsWrap" style="flex-direction:column;align-items:stretch;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          <strong style="font-size:13.5px;">الخروج أثناء الدوام <span style="font-weight:400;color:var(--ink-soft);font-size:12px;">— خروج ثم عودة خلال اليوم، ويمكن تسجيل أكثر من مرة</span></strong>
+          <button type="button" class="btn secondary small" onclick="addExitRow()">+ إضافة خروج</button>
+        </div>
+        <div id="rc_exitsList"></div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;">يجب أن يقع الخروج والعودة بين وقت الحضور ووقت الانصراف، وألا تتداخل المرات. تُحسب فقط الدقائق الواقعة داخل ساعات الوردية. الخروج المعتمد (بإذن) لا يُخصم من نسبة الالتزام، وغير المعتمد يُخصم إذا كان الإعداد في الأعلى مفعّلًا.</div>
+      </div>
+
+      <div class="status-block" id="rc_leaveWrap" style="display:none;">
+        <div class="field grow"><label>نوع الإجازة</label>
+          <select id="rc_leaveType">
+            <option value="">اختر نوع الإجازة</option>
+            <option value="annual">إجازة سنوية</option>
+            <option value="unpaid">إجازة بدون مرتب</option>
+            <option value="emergency">إجازة اضطرارية</option>
+            <option value="sick">إجازة مرضية</option>
+          </select>
+        </div>
+        <div class="field checkbox"><input type="checkbox" id="rc_leaveApproved" checked><label for="rc_leaveApproved">اعتماد الإجازة</label></div>
+        <div class="field grow"><label>المعتمِد</label><input id="rc_leaveApprovedBy" placeholder="اسم المسؤول"></div>
+        <div class="field grow"><label>ملاحظة</label><input id="rc_leaveNote" placeholder="ملاحظة اختيارية"></div>
+      </div>
+
+      <div class="status-block" id="rc_absentWrap" style="display:none;">
+        <div class="field checkbox"><input type="checkbox" id="rc_absenceApproved"><label for="rc_absenceApproved">اعتماد الغياب</label></div>
+        <div class="field grow"><label>المعتمِد</label><input id="rc_absenceApprovedBy" placeholder="اسم المسؤول"></div>
+        <div class="field grow"><label>سبب الغياب</label><input id="rc_absenceNote" placeholder="سبب الغياب"></div>
+      </div>
+
+      <div class="row">
+        <div class="field"><button class="btn" id="rc_saveBtn" onclick="addRecord()">حفظ السجل</button></div>
+        <div class="field" id="rc_cancelWrap" style="display:none;"><button class="btn secondary" onclick="cancelEdit()">إلغاء التعديل</button></div>
+      </div>
+      <div class="hint">الجمعة تُستبعد تلقائيًا من الحساب. كل نوع اعتماد (إجازة، غياب، تأخير، خروج مبكر) مستقل تمامًا عن غيره، ولكل اعتماد اسم المعتمِد وملاحظة خاصة به.</div>
+    </div>
+    <div class="panel">
+      <h2>آخر السجلات <small>اضغط "تعديل" لتحميل السجل في النموذج أعلاه</small></h2>
+      <div class="row no-print">
+        <div class="field grow"><label>بحث (بالاسم أو التاريخ)</label><input id="rf_search" placeholder="مثال: أحمد أو 2026-09" oninput="renderRecords()"></div>
+        <div class="field grow"><label>فلترة حسب الموظف</label><select id="rf_emp" onchange="renderRecords()"></select></div>
+        <div class="field"><label>فلترة حسب التاريخ</label><input id="rf_date" type="date" onchange="renderRecords()"></div>
+        <div class="field"><button class="btn secondary small" onclick="clearRecordFilters()">إعادة تعيين</button></div>
+      </div>
+      <table id="recordsTable"><thead><tr><th>الموظف</th><th>التاريخ</th><th>الحالة</th><th>حضور</th><th>انصراف</th><th>التفاصيل والاعتماد</th><th></th></tr></thead>
+      <tbody id="recordsBody"></tbody></table>
+      <div class="empty-note" id="recordsEmpty" style="display:none;">لا توجد سجلات بعد</div>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section id="tab-report" style="display:none;">
+    <div class="panel no-print">
+      <h2>خيارات التقرير</h2>
+      <div class="row">
+        <div class="field"><label>من تاريخ</label><input id="rp_from" type="date"></div>
+        <div class="field"><label>إلى تاريخ</label><input id="rp_to" type="date"></div>
+        <div class="field"><button class="btn secondary small" onclick="setThisMonth()">الشهر الحالي</button></div>
+        <div class="field"><button class="btn secondary small" onclick="setWeek(0)">هذا الأسبوع</button></div>
+        <div class="field"><button class="btn secondary small" onclick="setWeek(1)">الأسبوع الماضي</button></div>
+      </div>
+      <div class="hint">جميع الحسابات (التأخير، الخروج المبكر، الغياب بإذن وبدون إذن، الإجازات) تُحتسب حصرًا للسجلات الواقعة بين "من تاريخ" و"إلى تاريخ" المحددين أعلاه.</div>
+      <div class="row" style="align-items:flex-start;">
+        <div class="field grow">
+          <label>الموظفون المشمولون بالتقرير</label>
+          <div class="emp-checklist" id="empChecklist"></div>
+          <div style="margin-top:6px;"><button class="btn secondary small" onclick="toggleAllEmp(true)">تحديد الكل</button>
+          <button class="btn secondary small" onclick="toggleAllEmp(false)">إلغاء الكل</button></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="view-toggle">
+          <button id="viewSummaryBtn" class="active" onclick="setReportView('summary')">ملخص إجمالي</button>
+          <button id="viewDetailBtn" onclick="setReportView('detail')">تقرير تفصيلي</button>
+          <button id="viewCustomBtn" onclick="setReportView('custom')">تقرير الحركات (تأخير، خروج، غياب، إجازات)</button>
+        </div>
+        <div class="field"><button class="btn" onclick="renderReport()">تحديث التقرير</button></div>
+        <div class="field"><button class="btn secondary" onclick="window.print()">طباعة (A4)</button></div>
+        <div class="field"><button class="btn secondary" onclick="exportReportToExcel()">تصدير Excel</button></div>
+      </div>
+    </div>
+
+    <div id="reportSummaryView">
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="panel">
+        <h2>تقرير الالتزام حسب الموظف</h2>
+        <table id="reportTable"><thead><tr>
+          <th>الموظف</th><th>أيام الدوام</th><th>ساعات الدوام المحتسبة</th>
+          <th>تأخير معتمد (د)</th><th>تأخير غير معتمد (د)</th>
+          <th>خروج مبكر معتمد (د)</th><th>خروج مبكر غير معتمد (د)</th>
+          <th>خروج أثناء الدوام معتمد (د)</th><th>خروج أثناء الدوام غير معتمد (د)</th>
+          <th>غياب معتمد</th><th>غياب غير معتمد</th><th>أيام الإجازة</th><th>أيام بدون سجل</th><th>خصم الالتزام (د)</th><th>نسبة الالتزام</th>
+        </tr></thead><tbody id="reportBody"></tbody></table>
+        <div class="hint" style="margin-top:12px;">أعمدة التأخير والخروج المبكر والغياب تعرض كل السجلات المحفوظة. نسبة الالتزام تُحسب من «ساعات الدوام المحتسبة» و«خصم الالتزام» فقط. الأيام المستثناة للموظف لا تظهر في التقارير ولا تدخل في أي مجموع. عند تفعيل «احتساب الغياب غير المعتمد» تُضاف ساعات يوم الغياب إلى الساعات المحتسبة وإلى الخصم معًا.</div>
+        <div class="empty-note" id="reportEmpty" style="display:none;">لا توجد بيانات لهذه الفترة</div>
+      </div>
+      <div class="panel">
+        <h2>أيام عمل بدون أي سجل <small>حتى يوم أمس — بدون الجمعة والعطل الرسمية والأيام المستثناة وما قبل تاريخ المباشرة</small></h2>
+        <div class="hint warn">هذه الأيام لا تدخل في نسبة الالتزام لأنه لا يوجد لها سجل، لذا قد تبدو النسبة أفضل من الواقع. راجعها قبل اعتماد التقرير — اضغط على أي تاريخ لفتح نموذج التسجيل له مباشرة.</div>
+        <table><thead><tr><th>الموظف</th><th>العدد</th><th>التواريخ</th></tr></thead><tbody id="missingBody"></tbody></table>
+        <div class="empty-note" id="missingEmpty" style="display:none;">لا توجد أيام ناقصة في هذه الفترة</div>
+      </div>
+    </div>
+
+    <div id="reportDetailView" style="display:none;">
+      <div class="panel">
+        <h2>حساب نسبة الالتزام بالدوام الرسمي <small id="detailPeriodLabel"></small></h2>
+        <table class="stat-table">
+          <tr><td>عدد ساعات العمل اليومية</td><td id="ds_dailyHours">—</td></tr>
+          <tr><td>عدد الأيام</td><td id="ds_days">—</td></tr>
+          <tr><td>التاريخ</td><td id="ds_dateRange">—</td></tr>
+          <tr><td>إجمالي عدد ساعات الحضور الفعلية خلال الفترة</td><td id="ds_actualHours">—</td></tr>
+          <tr><td>إجمالي ساعات الدوام الرسمي للفترة</td><td id="ds_officialHours">—</td></tr>
+        </table>
+        <table class="stat-table" style="margin-top:10px;">
+          <tr><td><strong>نسبة الالتزام</strong></td><td id="ds_compliance">—</td></tr>
+          <tr><td>نسبة التأخير</td><td id="ds_delayPct">—</td></tr>
+          <tr><td>تأخير بإذن</td><td id="ds_delayExcPct">—</td></tr>
+          <tr><td>تأخير بدون إذن</td><td id="ds_delayUnexcPct">—</td></tr>
+          <tr><td>نسبة الخروج المبكر</td><td id="ds_earlyLeavePct">—</td></tr>
+          <tr><td>خروج مبكر بإذن</td><td id="ds_earlyLeaveExcPct">—</td></tr>
+          <tr><td>خروج مبكر بدون إذن</td><td id="ds_earlyLeaveUnexcPct">—</td></tr>
+          <tr><td>نسبة الخروج أثناء الدوام</td><td id="ds_midExitPct">—</td></tr>
+          <tr><td>خروج أثناء الدوام بإذن</td><td id="ds_midExitExcPct">—</td></tr>
+          <tr><td>خروج أثناء الدوام بدون إذن</td><td id="ds_midExitUnexcPct">—</td></tr>
+        </table>
+      </div>
+      <div class="panel">
+        <h2>تفصيل التأخير</h2>
+        <table><thead><tr><th>الاسم</th><th>التاريخ</th><th>إجمالي التأخير</th><th>المعتمِد</th><th>ملاحظة</th></tr></thead>
+        <tbody id="detailDelayBody"></tbody></table>
+        <div class="empty-note" id="detailDelayEmpty" style="display:none;">لا يوجد تأخير مسجل في هذه الفترة</div>
+      </div>
+      <div class="panel">
+        <h2>تفصيل الخروج المبكر</h2>
+        <table><thead><tr><th>الاسم</th><th>التاريخ</th><th>إجمالي الخروج المبكر</th><th>المعتمِد</th><th>ملاحظة</th></tr></thead>
+        <tbody id="detailEarlyLeaveBody"></tbody></table>
+        <div class="empty-note" id="detailEarlyLeaveEmpty" style="display:none;">لا يوجد خروج مبكر مسجل في هذه الفترة</div>
+      </div>
+      <div class="panel">
+        <h2>تفصيل الخروج أثناء الدوام</h2>
+        <table><thead><tr><th>الاسم</th><th>التاريخ</th><th>من</th><th>إلى</th><th>المدة</th><th>الحالة</th><th>المعتمِد</th><th>ملاحظة</th></tr></thead>
+        <tbody id="detailMidExitBody"></tbody></table>
+        <div class="empty-note" id="detailMidExitEmpty" style="display:none;">لا يوجد خروج أثناء الدوام في هذه الفترة</div>
+      </div>
+      <div class="panel">
+        <h2>الإجازات والغياب</h2>
+        <table><thead><tr><th>الاسم</th><th>التاريخ</th><th>النوع</th><th>الاعتماد</th><th>المعتمِد</th><th>ملاحظة</th></tr></thead>
+        <tbody id="detailLeaveBody"></tbody></table>
+        <div class="empty-note" id="detailLeaveEmpty" style="display:none;">لا توجد إجازات أو غياب في هذه الفترة</div>
+      </div>
+    </div>
+
+    <div id="reportCustomView" style="display:none;">
+      <div class="hint">يعرض هذا التقرير الحركات فقط — وليس نسبة الالتزام: عدد مرات كل نوع من الحركات ودقائقه، مقسّمًا إلى بإذن وبدون إذن، لكل موظف خلال الفترة المحددة، ثم سجلًا تفصيليًا بكل حركة. الحركة المعتمدة جزئيًا تُعدّ مرة واحدة ضمن «بدون إذن»، بينما تُقسَّم دقائقها بدقة بين العمودين.</div>
+      <div class="kpi-grid" id="customKpiGrid"></div>
+      <div class="panel">
+        <h2>عدد الحركات حسب النوع <small id="customPeriodLabel"></small></h2>
+        <div class="table-scroll"><table id="customReportTable" class="grouped"><thead>
+          <tr><th rowspan="2">الموظف</th><th colspan="4" class="grp gs">التأخير</th><th colspan="4" class="grp gs">الخروج المبكر</th><th colspan="4" class="grp gs">الخروج أثناء الدوام</th><th colspan="2" class="grp gs">الغياب (يوم)</th><th colspan="4" class="grp gs">الإجازات (يوم)</th><th rowspan="2" class="gs">إجمالي الحركات</th></tr>
+          <tr><th class="gs">مرات بإذن</th><th>مرات بدون إذن</th><th>دقائق بإذن</th><th>دقائق بدون إذن</th><th class="gs">مرات بإذن</th><th>مرات بدون إذن</th><th>دقائق بإذن</th><th>دقائق بدون إذن</th><th class="gs">مرات بإذن</th><th>مرات بدون إذن</th><th>دقائق بإذن</th><th>دقائق بدون إذن</th><th class="gs">بإذن</th><th>بدون إذن</th><th class="gs">سنوية</th><th>بدون مرتب</th><th>اضطرارية</th><th>مرضية</th></tr>
+        </thead><tbody id="customReportBody"></tbody>
+        <tfoot><tr id="customReportTotalsRow"></tr></tfoot></table></div>
+        <div class="empty-note" id="customReportEmpty" style="display:none;">لا توجد حركات لهذه الفترة</div>
+      </div>
+      <div class="panel">
+        <h2>سجل الحركات التفصيلي <small id="moveLogCount"></small></h2>
+        <div class="row no-print">
+          <div class="field"><label>نوع الحركة</label>
+            <select id="mvTypeFilter" onchange="renderReport()">
+              <option value="">كل الأنواع</option>
+              <option value="delay">تأخير</option>
+              <option value="early">خروج مبكر</option>
+              <option value="mid">خروج أثناء الدوام</option>
+              <option value="absent">غياب</option>
+              <option value="leave">إجازة</option>
+            </select>
+          </div>
+          <div class="field"><label>الاعتماد</label>
+            <select id="mvApprovalFilter" onchange="renderReport()">
+              <option value="">الكل</option>
+              <option value="ok">بإذن / معتمد</option>
+              <option value="bad">بدون إذن / غير معتمد</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-scroll"><table><thead><tr><th>الموظف</th><th>التاريخ</th><th>اليوم</th><th>نوع الحركة</th><th>الوقت</th><th>المدة</th><th>الاعتماد</th><th>المعتمِد</th><th>السبب / الملاحظة</th></tr></thead>
+        <tbody id="moveLogBody"></tbody></table></div>
+        <div class="empty-note" id="moveLogEmpty" style="display:none;">لا توجد حركات مطابقة</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA -->
+  <section id="tab-data" style="display:none;">
+    <div class="panel" id="syncPanel">
+      <h2>المزامنة السحابية</h2>
+      <div id="syncPanelBody"></div>
+    </div>
+    <div class="panel">
+      <h2>استيراد الحركات من ملف Excel</h2>
+      <div class="hint">الأعمدة المتوقعة: <strong>كود الموظف، التاريخ، الحالة، وقت الحضور، وقت الانصراف، نوع الإجازة</strong>، ولكل نوع اعتماد (الإجازة، الغياب، التأخير، الخروج المبكر) ثلاثة أعمدة: <strong>اعتماد ... / معتمِد ... / ملاحظة ...</strong>. المطابقة تتم عبر كود الموظف أولًا، ثم الاسم إن لم يوجد كود. عمود "نوع الإجازة" مطلوب فقط للصفوف بحالة "إجازة" (سنوية / بدون مرتب / اضطرارية / مرضية). أعمدة الاعتماد تُكتب "نعم" أو "لا" — تُهمل إن لم تنطبق على حالة الصف. للخروج أثناء الدوام (حتى 3 مرات في اليوم): <strong>وقت الخروج 1 / وقت العودة 1 / اعتماد الخروج 1 / معتمِد الخروج 1 / ملاحظة الخروج 1</strong>، ثم 2 و3 بنفس الشكل.</div>
+      <div class="row">
+        <div class="field"><label>ملف Excel (.xlsx)</label><input type="file" id="excelFile" accept=".xlsx,.xls" onchange="importExcel(event)"></div>
+        <div class="field"><button class="btn secondary" onclick="downloadTemplate()">تنزيل نموذج Excel</button></div>
+      </div>
+    </div>
+    <div class="panel" id="importLogPanel" style="display:none;">
+      <h2>سجل الفوارق بعد الاستيراد</h2>
+      <div class="kpi-grid" id="importKpi"></div>
+      <ul class="import-log" id="importLogList"></ul>
+    </div>
+    <div class="panel">
+      <h2>النسخ الاحتياطي الكامل</h2>
+      <div class="hint">البيانات مخزّنة في هذا الجهاز فقط. على الهاتف يفتح زر التصدير قائمة المشاركة (واتساب، بريد، «حفظ في الملفات»)، وعلى الكمبيوتر يُنزَّل الملف.</div>
+      <div class="hint warn"><strong>الاستخدام على جهازين:</strong> اجعل أحدهما الجهاز الأساسي. ابدأ الجهاز الثاني بـ«استبدال» من نسخة الجهاز الأساسي، وبعدها انقل التغييرات بـ«دمج». الدمج يضيف الجديد ويأخذ الأحدث تعديلًا من كل سجل، لكنه <strong>لا ينقل عمليات الحذف</strong> — للحصول على نسخة مطابقة تمامًا استخدم «استبدال».</div>
+      <div class="row">
+        <button class="btn" onclick="exportData()">تصدير / مشاركة نسخة احتياطية</button>
+        <div class="field"><label>دمج نسخة احتياطية مع البيانات الحالية</label><input type="file" id="mergeFile" accept=".json,application/json,text/plain" onchange="importData(event,'merge')"></div>
+        <div class="field"><label>استبدال كل البيانات بنسخة احتياطية</label><input type="file" id="importFile" accept=".json,application/json,text/plain" onchange="importData(event,'replace')"></div>
+      </div>
+      <div style="margin-top:14px;">
+        <div style="font-size:13px;font-weight:700;">مساحة التخزين المستخدمة <span style="font-weight:400;color:var(--ink-soft);">(تقديرية — حد المتصفح نحو 5 ميغابايت)</span></div>
+        <div class="meter" id="storageMeter"><span style="width:0%"></span></div>
+        <div style="font-size:12.5px;color:var(--ink-soft);" id="storageText"></div>
+        <div style="font-size:12.5px;color:var(--ink-soft);" id="lastBackupText"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ---------- Storage ---------- */
+const K = {shifts:'att_shifts', employees:'att_employees', records:'att_records', settings:'att_settings', reportEmployees:'att_report_employees', holidays:'att_holidays'};
+function load(k, fallback){ try{ const v = JSON.parse(localStorage.getItem(k)); return v || fallback; }catch(e){ return fallback; } }
+// A failed write (storage full / blocked) must never be silent: the data would live only in memory.
+function save(k, v){
+  try{ localStorage.setItem(k, JSON.stringify(v)); if(typeof syncTrack==='function') syncTrack(k); return true; }
+  catch(e){
+    alert('تعذّر حفظ البيانات: مساحة التخزين في المتصفح ممتلئة أو غير متاحة. صدّر نسخة احتياطية الآن ولا تغلق الصفحة قبل ذلك.');
+    return false;
+  }
+}
+/* ---------- Local dates (never toISOString: it converts to UTC and shifts the day in Libya, UTC+2) ---------- */
+const pad2 = n=> String(n).padStart(2,'0');
+function ymd(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function parseYmd(iso){ return new Date(iso+'T00:00:00'); }
+function dowOf(iso){ return parseYmd(iso).getDay(); }
+function addDaysIso(iso, n){ const d = parseYmd(iso); d.setDate(d.getDate()+n); return ymd(d); }
+const AR_WEEKDAYS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+function toLatinDigits(s){ return String(s).replace(/[٠-٩]/g, c=> '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[۰-۹]/g, c=> '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)); }
+
+// Weekdays a manager can exclude per employee (JS getDay() numbers). Friday is excluded globally
+// and is therefore not offered here.
+const COMPLIANCE_WEEKDAYS = [
+  {dow:6, label:'السبت'}, {dow:0, label:'الأحد'}, {dow:1, label:'الاثنين'},
+  {dow:2, label:'الثلاثاء'}, {dow:3, label:'الأربعاء'}, {dow:4, label:'الخميس'}
+];
+
+let shifts   = load(K.shifts, []);
+// employees: {id, code, name, shiftId, complianceExcludedWeekdays:[dow,...], complianceDelayAllowances:{dow:minutes}, complianceEarlyLeaveAllowances:{dow:minutes}}
+let employees= migrateEmployees(load(K.employees, []));
+// records: {id, empId, date, status, checkIn, checkOut, leaveType,
+//           leaveApproved, leaveApprovedBy, leaveNote,
+//           absenceApproved, absenceApprovedBy, absenceNote,
+//           delayApproved, delayApprovedBy, delayNote,
+//           earlyLeaveApproved, earlyLeaveApprovedBy, earlyLeaveNote,
+//           delayApprovedMinutes / earlyLeaveApprovedMinutes (0 = whole amount approved),
+//           delayExcludedFromCompliance, earlyLeaveExcludedFromCompliance}
+// Backfills the approver/note fields (and drops the retired overtime flag) for records
+// saved before detailed approvals were introduced.
+function migrateRecords(arr){
+  return arr.map(r=>{
+    const rec = {...r};
+    delete rec.otApproved;
+    ['leaveApprovedBy','leaveNote','absenceApprovedBy','absenceNote',
+     'delayApprovedBy','delayNote','earlyLeaveApprovedBy','earlyLeaveNote'].forEach(f=>{
+      if(rec[f]===undefined) rec[f] = '';
+    });
+    if(rec.earlyLeaveApproved===undefined) rec.earlyLeaveApproved = !!rec.delayApproved;
+    rec.delayExcludedFromCompliance = rec.delayExcludedFromCompliance === true;
+    rec.delayApprovedMinutes = Number(rec.delayApprovedMinutes)>0 ? Math.round(Number(rec.delayApprovedMinutes)) : 0;
+    rec.earlyLeaveExcludedFromCompliance = rec.earlyLeaveExcludedFromCompliance === true;
+    rec.earlyLeaveApprovedMinutes = Number(rec.earlyLeaveApprovedMinutes)>0 ? Math.round(Number(rec.earlyLeaveApprovedMinutes)) : 0;
+    // exits: [{out, back, approved, approvedBy, note}] — exits during the shift (out and back again).
+    rec.updatedAt = typeof rec.updatedAt==='string' ? rec.updatedAt : ''; // used to pick the newer copy when merging backups
+    rec.exits = Array.isArray(rec.exits) ? rec.exits.filter(x=>x && /^\d{2}:\d{2}$/.test(x.out||'') && /^\d{2}:\d{2}$/.test(x.back||''))
+      .map(x=>({out:x.out, back:x.back, approved:x.approved===true, approvedBy:String(x.approvedBy||''), note:String(x.note||'')})) : [];
+    return rec;
+  });
+}
+// Old employees have no exclusions: give them an empty, validated, de-duplicated list.
+function migrateEmployees(arr){
+  const valid = new Set(COMPLIANCE_WEEKDAYS.map(w=>w.dow));
+  // {dow: minutes}: kept only for excluded weekdays and positive whole minutes.
+  const cleanAllowances = (src, days)=>{
+    const map = (src && typeof src==='object') ? src : {};
+    const out = {};
+    days.forEach(d=>{ const m = Math.round(Number(map[d])); if(m>0) out[d] = m; });
+    return out;
+  };
+  return arr.map(e=>{
+    const emp = {...e};
+    const days = Array.isArray(emp.complianceExcludedWeekdays) ? emp.complianceExcludedWeekdays : [];
+    emp.complianceExcludedWeekdays = [...new Set(days.map(Number).filter(n=>valid.has(n)))];
+    emp.complianceDelayAllowances = cleanAllowances(emp.complianceDelayAllowances, emp.complianceExcludedWeekdays);
+    emp.complianceEarlyLeaveAllowances = cleanAllowances(emp.complianceEarlyLeaveAllowances, emp.complianceExcludedWeekdays);
+    emp.startDate = /^\d{4}-\d{2}-\d{2}$/.test(emp.startDate||'') ? emp.startDate : '';
+    return emp;
+  });
+}
+let records  = migrateRecords(load(K.records, []));
+let settings = load(K.settings, {grace:15, countEarlyLeaveInCompliance:true});
+function normalizeSettings(st){
+  if(st.countEarlyLeaveInCompliance===undefined) st.countEarlyLeaveInCompliance = true;
+  if(st.countUnapprovedAbsenceInCompliance===undefined) st.countUnapprovedAbsenceInCompliance = false; // off = old behaviour
+  if(st.countMidExitInCompliance===undefined) st.countMidExitInCompliance = true;
+  if(st.lastBackupAt===undefined) st.lastBackupAt = null;
+  return st;
+}
+normalizeSettings(settings);
+// Official holidays apply to every employee: {id, date, name}
+let holidays = load(K.holidays, []);
+let holidayMap = new Map();
+function rebuildHolidayMap(){ holidayMap = new Map(holidays.map(h=>[h.date, h.name])); }
+rebuildHolidayMap();
+const isOfficialHoliday = iso=> holidayMap.has(iso);
+const LEAVE_TYPES = {annual:'إجازة سنوية', unpaid:'إجازة بدون مرتب', emergency:'إجازة اضطرارية', sick:'إجازة مرضية'};
+let editingKey = null; // {empId, date} of record currently loaded for edit
+let editingEmployeeId = null; // id of employee currently loaded for edit
+// Employees included in the reports; remembered between sessions (ids of deleted employees are dropped).
+let selectedEmpIds = new Set(load(K.reportEmployees, []).filter(id=>employees.some(e=>e.id===id)));
+// false until the user's selection is first stored: only then is "select all by default" applied.
+// (Before, an empty selection was treated as "never chosen", so "إلغاء الكل" re-selected everyone.)
+let reportSelectionInit = localStorage.getItem(K.reportEmployees)!==null;
+let reportView = 'summary';
+let lastImportLog = null;
+
+document.getElementById('graceInput').value = settings.grace;
+document.getElementById('countEarlyLeaveInput').checked = settings.countEarlyLeaveInCompliance;
+document.getElementById('graceInput').addEventListener('change', e=>{ settings.grace = parseInt(e.target.value)||0; save(K.settings, settings); renderReport(); });
+document.getElementById('countEarlyLeaveInput').addEventListener('change', e=>{ settings.countEarlyLeaveInCompliance = e.target.checked; save(K.settings, settings); renderReport(); });
+document.getElementById('countAbsenceInput').checked = settings.countUnapprovedAbsenceInCompliance;
+document.getElementById('countAbsenceInput').addEventListener('change', e=>{ settings.countUnapprovedAbsenceInCompliance = e.target.checked; save(K.settings, settings); renderReport(); });
+document.getElementById('countMidExitInput').checked = settings.countMidExitInCompliance;
+document.getElementById('countMidExitInput').addEventListener('change', e=>{ settings.countMidExitInCompliance = e.target.checked; save(K.settings, settings); renderReport(); });
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('main > section').forEach(s=>s.style.display='none');
+    document.getElementById('tab-'+btn.dataset.tab).style.display='block';
+    if(btn.dataset.tab==='report'){ renderEmpChecklist(); renderReport(); }
+  });
+});
+
+const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- Shifts ---------- */
+function addShift(){
+  const name = document.getElementById('sh_name').value.trim();
+  const start = document.getElementById('sh_start').value;
+  const end = document.getElementById('sh_end').value;
+  const endThu = document.getElementById('sh_endThu').value;
+  if(!name || !start || !end || !endThu){ alert('يرجى تعبئة كل الحقول'); return; }
+  shifts.push({id:uid(), name, start, end, endThu});
+  save(K.shifts, shifts);
+  document.getElementById('sh_name').value='';
+  renderShifts(); renderShiftOptions();
+}
+function deleteShift(id){
+  if(employees.some(e=>e.shiftId===id)){ alert('لا يمكن حذف وردية مرتبطة بموظفين'); return; }
+  shifts = shifts.filter(s=>s.id!==id); save(K.shifts, shifts); renderShifts(); renderShiftOptions();
+}
+function renderShifts(){
+  const body = document.getElementById('shiftsBody');
+  body.innerHTML = shifts.map(s=>`<tr>
+    <td>${esc(s.name)}</td><td>${s.start}</td><td>${s.end}</td><td>${s.endThu}</td>
+    <td><button class="btn danger" onclick="deleteShift('${s.id}')">حذف</button></td></tr>`).join('');
+  document.getElementById('shiftsEmpty').style.display = shifts.length? 'none':'block';
+}
+function renderShiftOptions(){
+  const opts = shifts.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const sel = document.getElementById('em_shift'), keep = sel.value;
+  sel.innerHTML = opts || '<option value="">أضف وردية أولاً</option>';
+  if(keep && shifts.some(x=>x.id===keep)) sel.value = keep;
+}
+
+/* ---------- Official holidays ---------- */
+function addHoliday(){
+  const from = document.getElementById('hd_from').value;
+  const to = document.getElementById('hd_to').value || from;
+  const name = document.getElementById('hd_name').value.trim();
+  if(!from || !name){ alert('يرجى تحديد التاريخ واسم العطلة'); return; }
+  if(to < from){ alert('تاريخ النهاية قبل تاريخ البداية'); return; }
+  if(addDaysIso(from, 60) < to){ alert('المدى أطول من 60 يومًا — تحقق من التواريخ'); return; }
+  let added = 0;
+  for(let iso = from; iso <= to; iso = addDaysIso(iso, 1)){
+    if(dowOf(iso)===5 || isOfficialHoliday(iso)) continue;
+    holidays.push({id:uid(), date:iso, name}); added++;
+  }
+  holidays.sort((a,b)=> a.date.localeCompare(b.date));
+  save(K.holidays, holidays); rebuildHolidayMap();
+  document.getElementById('hd_from').value=''; document.getElementById('hd_to').value=''; document.getElementById('hd_name').value='';
+  if(!added) alert('لم تُضف أي أيام (كلها أيام جمعة أو مسجلة مسبقًا)');
+  renderHolidays(); renderRecords(); renderReport();
+}
+function deleteHoliday(id){
+  holidays = holidays.filter(h=>h.id!==id); save(K.holidays, holidays); rebuildHolidayMap();
+  renderHolidays(); renderRecords(); renderReport();
+}
+function renderHolidays(){
+  document.getElementById('holidaysBody').innerHTML = holidays.map(h=>`<tr>
+    <td>${h.date}</td><td>${AR_WEEKDAYS[dowOf(h.date)]}</td><td>${esc(h.name)}</td>
+    <td><button class="btn danger" onclick="deleteHoliday('${esc(h.id)}')">حذف</button></td></tr>`).join('');
+  document.getElementById('holidaysEmpty').style.display = holidays.length? 'none':'block';
+}
+
+/* ---------- Employees ---------- */
+function getSelectedExcludedWeekdays(){
+  return [...document.querySelectorAll('#em_excludedWeekdays input[type=checkbox]:checked')].map(i=>Number(i.value));
+}
+// Reads one allowance column ('.wd-allow' = delay, '.wd-allow-early' = early leave) -> {dow: minutes}
+function getAllowances(selector){
+  const out = {};
+  document.querySelectorAll('#em_excludedWeekdays .wd-item').forEach(item=>{
+    const cb = item.querySelector('input[type=checkbox]');
+    const mins = Math.round(Number(item.querySelector(selector).value));
+    if(cb.checked && mins>0) out[cb.value] = mins;
+  });
+  return out;
+}
+const getDelayAllowances = ()=> getAllowances('.wd-allow');
+const getEarlyLeaveAllowances = ()=> getAllowances('.wd-allow-early');
+function setSelectedExcludedWeekdays(days, delayAllowances, earlyLeaveAllowances){
+  const set = new Set(days||[]); const dl = delayAllowances||{}, el = earlyLeaveAllowances||{};
+  document.querySelectorAll('#em_excludedWeekdays .wd-item').forEach(item=>{
+    const cb = item.querySelector('input[type=checkbox]');
+    const dn = item.querySelector('.wd-allow'), en = item.querySelector('.wd-allow-early');
+    cb.checked = set.has(Number(cb.value));
+    dn.disabled = en.disabled = !cb.checked;
+    dn.value = (cb.checked && dl[cb.value]) ? dl[cb.value] : '';
+    en.value = (cb.checked && el[cb.value]) ? el[cb.value] : '';
+  });
+}
+document.getElementById('em_excludedWeekdays').addEventListener('change', e=>{
+  if(e.target.type!=='checkbox') return;
+  const item = e.target.closest('.wd-item');
+  item.querySelectorAll('input[type=number]').forEach(n=>{ n.disabled = !e.target.checked; if(!e.target.checked) n.value = ''; });
+});
+function excludedWeekdaysLabel(emp){
+  const days = emp.complianceExcludedWeekdays||[];
+  const dl = emp.complianceDelayAllowances||{}, el = emp.complianceEarlyLeaveAllowances||{};
+  const labels = COMPLIANCE_WEEKDAYS.filter(w=>days.includes(w.dow)).map(w=>{
+    const parts = [];
+    if(dl[w.dow]) parts.push(`تأخير مسموح ${dl[w.dow]} د`);
+    if(el[w.dow]) parts.push(`خروج مبكر مسموح ${el[w.dow]} د`);
+    return `${w.label} (${parts.length ? parts.join('، ') : 'يوم كامل'})`;
+  });
+  return labels.length ? labels.join('، ') : '—';
+}
+function addEmployee(){
+  const code = document.getElementById('em_code').value.trim();
+  const name = document.getElementById('em_name').value.trim();
+  const shiftId = document.getElementById('em_shift').value;
+  const startDate = document.getElementById('em_startDate').value;
+  if(!name || !shiftId){ alert('يرجى تعبئة الاسم واختيار وردية'); return; }
+  if(code && employees.some(e=>e.code===code && e.id!==editingEmployeeId)){ alert('رمز الموظف مستخدم بالفعل'); return; }
+
+  if(editingEmployeeId){
+    const emp = employees.find(e=>e.id===editingEmployeeId);
+    if(emp){ emp.code = code; emp.name = name; emp.shiftId = shiftId; emp.startDate = startDate; emp.complianceExcludedWeekdays = getSelectedExcludedWeekdays(); emp.complianceDelayAllowances = getDelayAllowances(); emp.complianceEarlyLeaveAllowances = getEarlyLeaveAllowances(); }
+    save(K.employees, employees);
+    cancelEmployeeEdit();
+  } else {
+    const newId = uid();
+    employees.push({id:newId, code, name, shiftId, startDate, complianceExcludedWeekdays:getSelectedExcludedWeekdays(), complianceDelayAllowances:getDelayAllowances(), complianceEarlyLeaveAllowances:getEarlyLeaveAllowances()});
+    save(K.employees, employees);
+    // A new employee joins the report selection (only once a selection exists, so the "all by default" rule still works).
+    if(reportSelectionInit){ selectedEmpIds.add(newId); saveSelectedEmp(); }
+    document.getElementById('em_code').value=''; document.getElementById('em_name').value=''; document.getElementById('em_startDate').value='';
+    setSelectedExcludedWeekdays([]);
+  }
+  renderEmployees(); renderEmployeeOptions(); renderRecords();
+}
+function editEmployee(id){
+  const emp = employees.find(e=>e.id===id); if(!emp) return;
+  editingEmployeeId = id;
+  document.getElementById('em_code').value = emp.code||'';
+  document.getElementById('em_name').value = emp.name||'';
+  document.getElementById('em_shift').value = emp.shiftId||'';
+  document.getElementById('em_startDate').value = emp.startDate||'';
+  setSelectedExcludedWeekdays(emp.complianceExcludedWeekdays, emp.complianceDelayAllowances, emp.complianceEarlyLeaveAllowances);
+  document.getElementById('employeeFormTitle').textContent = 'تعديل بيانات موظف';
+  document.getElementById('em_saveBtn').textContent = 'تحديث الموظف';
+  document.getElementById('em_cancelWrap').style.display = 'flex';
+  document.getElementById('tab-employees').scrollIntoView({behavior:'smooth'});
+}
+function cancelEmployeeEdit(){
+  editingEmployeeId = null;
+  document.getElementById('em_code').value=''; document.getElementById('em_name').value=''; document.getElementById('em_startDate').value='';
+  setSelectedExcludedWeekdays([]);
+  document.getElementById('employeeFormTitle').textContent = 'إضافة موظف';
+  document.getElementById('em_saveBtn').textContent = 'إضافة';
+  document.getElementById('em_cancelWrap').style.display = 'none';
+}
+function deleteEmployee(id){
+  if(records.some(r=>r.empId===id)){ if(!confirm('سيتم أيضًا حذف كل سجلات هذا الموظف. متابعة؟')) return; records = records.filter(r=>r.empId!==id); save(K.records, records); }
+  employees = employees.filter(e=>e.id!==id); save(K.employees, employees);
+  selectedEmpIds.delete(id); saveSelectedEmp();
+  if(editingEmployeeId===id) cancelEmployeeEdit();
+  renderEmployees(); renderEmployeeOptions(); renderRecords();
+}
+function renderEmployees(){
+  const body = document.getElementById('employeesBody');
+  body.innerHTML = employees.map(e=>{
+    const sh = shifts.find(s=>s.id===e.shiftId);
+    return `<tr><td>${esc(e.code||'—')}</td><td>${esc(e.name)}</td><td>${sh?esc(sh.name):'<span style="color:var(--delay)">وردية محذوفة</span>'}</td>
+    <td>${e.startDate||'—'}</td>
+    <td>${esc(excludedWeekdaysLabel(e))}</td>
+    <td><button class="btn secondary small" onclick="editEmployee('${e.id}')">تعديل</button>
+    <button class="btn danger" onclick="deleteEmployee('${e.id}')">حذف</button></td></tr>`;
+  }).join('');
+  document.getElementById('employeesEmpty').style.display = employees.length? 'none':'block';
+}
+function renderEmployeeOptions(){
+  const opts = employees.map(e=>`<option value="${e.id}">${esc(e.name)}${e.code?' — '+esc(e.code):''}</option>`).join('');
+  const sel = document.getElementById('rc_emp'), keep = sel.value;
+  sel.innerHTML = opts || '<option value="">أضف موظفًا أولاً</option>';
+  sel.value = (keep && employees.some(x=>x.id===keep)) ? keep : sel.value;
+  renderRecordFilterEmpOptions();
+}
+function renderRecordFilterEmpOptions(){
+  const opts = employees.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  const sel = document.getElementById('rf_emp'), keep = sel.value;
+  sel.innerHTML = '<option value="">كل الموظفين</option>' + opts;
+  if(keep && employees.some(x=>x.id===keep)) sel.value = keep;
+}
+function clearRecordFilters(){
+  document.getElementById('rf_search').value = '';
+  document.getElementById('rf_emp').value = '';
+  document.getElementById('rf_date').value = '';
+  renderRecords();
+}
+
+/* ---------- Records (entry + edit) ---------- */
+function toggleStatusFields(){
+  const status = document.getElementById('rc_status').value;
+  document.getElementById('rc_presentWrap').style.display = status==='present' ? 'flex' : 'none';
+  document.getElementById('rc_delayApprovalWrap').style.display = status==='present' ? 'flex' : 'none';
+  document.getElementById('rc_earlyLeaveApprovalWrap').style.display = status==='present' ? 'flex' : 'none';
+  document.getElementById('rc_exitsWrap').style.display = status==='present' ? 'flex' : 'none';
+  document.getElementById('rc_leaveWrap').style.display = status==='leave' ? 'flex' : 'none';
+  document.getElementById('rc_absentWrap').style.display = status==='absent' ? 'flex' : 'none';
+}
+// The approved-minutes field and the compliance-exclusion checkbox only make sense for an approved delay / early leave.
+// kind: 'delay' | 'earlyLeave' (ids: rc_<kind>Approved, rc_<kind>Excluded, rc_<kind>Minutes)
+function syncApprovalState(kind){
+  const approved = document.getElementById('rc_'+kind+'Approved').checked;
+  const box = document.getElementById('rc_'+kind+'Excluded');
+  const mins = document.getElementById('rc_'+kind+'Minutes');
+  box.disabled = mins.disabled = !approved;
+  if(!approved){ box.checked = false; mins.value = ''; }
+}
+['delay','earlyLeave'].forEach(k=> document.getElementById('rc_'+k+'Approved').addEventListener('change', ()=>syncApprovalState(k)));
+
+/* ---------- Exits during the shift (form rows) ---------- */
+// Values are set through properties, never through innerHTML, so typed text can't inject markup.
+function addExitRow(ex){
+  ex = ex || {};
+  const row = document.createElement('div');
+  row.className = 'exit-row';
+  row.innerHTML = `
+    <div class="field"><label>وقت الخروج</label><input type="time" class="ex-out"></div>
+    <div class="field"><label>وقت العودة</label><input type="time" class="ex-back"></div>
+    <div class="field checkbox"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);"><input type="checkbox" class="ex-approved"> معتمد (بإذن)</label></div>
+    <div class="field grow"><label>المعتمِد</label><input class="ex-by" placeholder="اسم المسؤول"></div>
+    <div class="field grow"><label>السبب / ملاحظة</label><input class="ex-note" placeholder="مثال: مراجعة مصرف"></div>
+    <div class="field"><button type="button" class="btn danger">حذف</button></div>`;
+  row.querySelector('.ex-out').value = ex.out||'';
+  row.querySelector('.ex-back').value = ex.back||'';
+  row.querySelector('.ex-approved').checked = !!ex.approved;
+  row.querySelector('.ex-by').value = ex.approvedBy||'';
+  row.querySelector('.ex-note').value = ex.note||'';
+  row.querySelector('button').addEventListener('click', ()=>row.remove());
+  document.getElementById('rc_exitsList').appendChild(row);
+  if(!ex.out) row.querySelector('.ex-out').focus();
+}
+function clearExitRows(){ document.getElementById('rc_exitsList').innerHTML = ''; }
+// Rows left completely empty are ignored; a half-filled row is an error.
+function readExitRows(){
+  const exits = [];
+  for(const row of document.querySelectorAll('#rc_exitsList .exit-row')){
+    const ex = {out:row.querySelector('.ex-out').value, back:row.querySelector('.ex-back').value,
+      approved:row.querySelector('.ex-approved').checked, approvedBy:row.querySelector('.ex-by').value.trim(),
+      note:row.querySelector('.ex-note').value.trim()};
+    if(!ex.out && !ex.back && !ex.approvedBy && !ex.note) continue;
+    if(!ex.out || !ex.back) return {error:'يرجى إدخال وقت الخروج ووقت العودة لكل خروج أثناء الدوام (أو احذف الصف)'};
+    exits.push(ex);
+  }
+  return {exits};
+}
+// Shared by the form and the Excel import. Returns '' when valid, otherwise the reason.
+function validateExits(exits, checkIn, checkOut){
+  const sorted = [...exits].sort((a,b)=> a.out.localeCompare(b.out));
+  const inM = toMinutes(checkIn), outM = toMinutes(checkOut);
+  let prevBack = -1;
+  for(const ex of sorted){
+    const a = toMinutes(ex.out), b = toMinutes(ex.back);
+    if(b <= a) return `وقت العودة (${ex.back}) يجب أن يكون بعد وقت الخروج (${ex.out})`;
+    if(a < inM || b > outM) return `الخروج ${ex.out}–${ex.back} يجب أن يقع بين وقت الحضور (${checkIn}) ووقت الانصراف (${checkOut})`;
+    if(a < prevBack) return `مرات الخروج متداخلة عند ${ex.out}`;
+    prevBack = b;
+  }
+  return '';
+}
+function addRecord(){
+  const empId = document.getElementById('rc_emp').value;
+  const date = document.getElementById('rc_date').value;
+  const status = document.getElementById('rc_status').value;
+  if(!empId || !date){ alert('يرجى اختيار الموظف والتاريخ'); return; }
+  const dow = new Date(date+'T00:00:00').getDay();
+  if(dow===5){ alert('التاريخ المختار يوم جمعة — يُستبعد تلقائيًا من الحساب ولا داعي لتسجيله'); return; }
+  if(isOfficialHoliday(date) && status!=='holiday' &&
+     !confirm(`هذا التاريخ عطلة رسمية (${holidayMap.get(date)}). سيُحفظ السجل لكنه لن يدخل في أي حساب. متابعة؟`)) return;
+
+  let rec = {id:uid(), empId, date, status, checkIn:'', checkOut:'',
+    leaveType:'',
+    leaveApproved:false, leaveApprovedBy:'', leaveNote:'',
+    absenceApproved:false, absenceApprovedBy:'', absenceNote:'',
+    delayApproved:false, delayApprovedBy:'', delayNote:'', delayApprovedMinutes:0, delayExcludedFromCompliance:false,
+    earlyLeaveApproved:false, earlyLeaveApprovedBy:'', earlyLeaveNote:'',
+    earlyLeaveApprovedMinutes:0, earlyLeaveExcludedFromCompliance:false, exits:[], updatedAt:new Date().toISOString()};
+
+  if(status==='present'){
+    const checkIn = document.getElementById('rc_in').value;
+    const checkOut = document.getElementById('rc_out').value;
+    if(!checkIn || !checkOut){ alert('يرجى إدخال وقت الحضور والانصراف'); return; }
+    if(toMinutes(checkOut) <= toMinutes(checkIn)){ alert('وقت الانصراف يجب أن يكون بعد وقت الحضور (الورديات الليلية غير مدعومة حاليًا)'); return; }
+    const exitsRead = readExitRows();
+    if(exitsRead.error){ alert(exitsRead.error); return; }
+    const exitErr = validateExits(exitsRead.exits, checkIn, checkOut);
+    if(exitErr){ alert(exitErr); return; }
+    rec.exits = exitsRead.exits.sort((a,b)=> a.out.localeCompare(b.out));
+    rec.checkIn = checkIn; rec.checkOut = checkOut;
+    rec.delayApproved = document.getElementById('rc_delayApproved').checked;
+    rec.delayApprovedBy = document.getElementById('rc_delayApprovedBy').value.trim();
+    rec.delayNote = document.getElementById('rc_delayNote').value.trim();
+    rec.delayApprovedMinutes = rec.delayApproved ? (Math.max(0, Math.round(Number(document.getElementById('rc_delayMinutes').value))) || 0) : 0;
+    rec.delayExcludedFromCompliance = rec.delayApproved && document.getElementById('rc_delayExcluded').checked;
+    rec.earlyLeaveApproved = document.getElementById('rc_earlyLeaveApproved').checked;
+    rec.earlyLeaveApprovedBy = document.getElementById('rc_earlyLeaveApprovedBy').value.trim();
+    rec.earlyLeaveNote = document.getElementById('rc_earlyLeaveNote').value.trim();
+    rec.earlyLeaveApprovedMinutes = rec.earlyLeaveApproved ? (Math.max(0, Math.round(Number(document.getElementById('rc_earlyLeaveMinutes').value))) || 0) : 0;
+    rec.earlyLeaveExcludedFromCompliance = rec.earlyLeaveApproved && document.getElementById('rc_earlyLeaveExcluded').checked;
+  } else if(status==='leave'){
+    const leaveType = document.getElementById('rc_leaveType').value;
+    if(!leaveType){ alert('يرجى اختيار نوع الإجازة'); return; }
+    rec.leaveType = leaveType;
+    rec.leaveApproved = document.getElementById('rc_leaveApproved').checked;
+    rec.leaveApprovedBy = document.getElementById('rc_leaveApprovedBy').value.trim();
+    rec.leaveNote = document.getElementById('rc_leaveNote').value.trim();
+  } else if(status==='absent'){
+    rec.absenceApproved = document.getElementById('rc_absenceApproved').checked;
+    rec.absenceApprovedBy = document.getElementById('rc_absenceApprovedBy').value.trim();
+    rec.absenceNote = document.getElementById('rc_absenceNote').value.trim();
+  }
+
+  // if editing an existing key and the date changed, remove the old one explicitly
+  if(editingKey && (editingKey.empId!==empId || editingKey.date!==date)){
+    records = records.filter(r=>!(r.empId===editingKey.empId && r.date===editingKey.date));
+  }
+  records = records.filter(r=>!(r.empId===empId && r.date===date)); // one record per employee/day
+  records.push(rec);
+  if(!save(K.records, records)) return; // keep the form filled so nothing is lost
+  cancelEdit();
+  // Empty the main inputs too (the date stays as it is), so a blank form confirms the record was saved.
+  ['rc_emp','rc_in','rc_out'].forEach(id=> document.getElementById(id).value = '');
+  document.getElementById('rc_status').value = 'present'; toggleStatusFields();
+  renderRecords();
+}
+function editRecord(empId, date){
+  const rec = records.find(r=>r.empId===empId && r.date===date);
+  if(!rec) return;
+  editingKey = {empId, date};
+  document.getElementById('rc_emp').value = empId;
+  document.getElementById('rc_date').value = date;
+  document.getElementById('rc_status').value = rec.status;
+  toggleStatusFields();
+  document.getElementById('rc_in').value = rec.checkIn||'';
+  document.getElementById('rc_out').value = rec.checkOut||'';
+  document.getElementById('rc_delayApproved').checked = !!rec.delayApproved;
+  document.getElementById('rc_delayApprovedBy').value = rec.delayApprovedBy||'';
+  document.getElementById('rc_delayNote').value = rec.delayNote||'';
+  document.getElementById('rc_delayExcluded').checked = !!rec.delayExcludedFromCompliance;
+  document.getElementById('rc_delayMinutes').value = rec.delayApprovedMinutes || '';
+  document.getElementById('rc_earlyLeaveApproved').checked = !!rec.earlyLeaveApproved;
+  document.getElementById('rc_earlyLeaveApprovedBy').value = rec.earlyLeaveApprovedBy||'';
+  document.getElementById('rc_earlyLeaveNote').value = rec.earlyLeaveNote||'';
+  document.getElementById('rc_earlyLeaveExcluded').checked = !!rec.earlyLeaveExcludedFromCompliance;
+  document.getElementById('rc_earlyLeaveMinutes').value = rec.earlyLeaveApprovedMinutes || '';
+  syncApprovalState('delay'); syncApprovalState('earlyLeave');
+  clearExitRows(); (rec.exits||[]).forEach(ex=>addExitRow(ex));
+  document.getElementById('rc_leaveType').value = rec.leaveType||'';
+  document.getElementById('rc_leaveApproved').checked = !!rec.leaveApproved;
+  document.getElementById('rc_leaveApprovedBy').value = rec.leaveApprovedBy||'';
+  document.getElementById('rc_leaveNote').value = rec.leaveNote||'';
+  document.getElementById('rc_absenceApproved').checked = !!rec.absenceApproved;
+  document.getElementById('rc_absenceApprovedBy').value = rec.absenceApprovedBy||'';
+  document.getElementById('rc_absenceNote').value = rec.absenceNote||'';
+  document.getElementById('entryTitle').textContent = 'تعديل سجل حضور';
+  document.getElementById('rc_saveBtn').textContent = 'تحديث السجل';
+  document.getElementById('rc_cancelWrap').style.display = 'flex';
+  document.getElementById('tab-entry').scrollIntoView({behavior:'smooth'});
+}
+function cancelEdit(){
+  editingKey = null;
+  document.getElementById('entryTitle').textContent = 'تسجيل يوم حضور';
+  document.getElementById('rc_saveBtn').textContent = 'حفظ السجل';
+  document.getElementById('rc_cancelWrap').style.display = 'none';
+  document.getElementById('rc_delayApproved').checked = false;
+  document.getElementById('rc_delayApprovedBy').value = '';
+  document.getElementById('rc_delayNote').value = '';
+  document.getElementById('rc_delayExcluded').checked = false;
+  document.getElementById('rc_delayMinutes').value = '';
+  document.getElementById('rc_earlyLeaveApproved').checked = false;
+  document.getElementById('rc_earlyLeaveApprovedBy').value = '';
+  document.getElementById('rc_earlyLeaveNote').value = '';
+  document.getElementById('rc_earlyLeaveExcluded').checked = false;
+  document.getElementById('rc_earlyLeaveMinutes').value = '';
+  syncApprovalState('delay'); syncApprovalState('earlyLeave');
+  clearExitRows();
+  document.getElementById('rc_leaveType').value = '';
+  document.getElementById('rc_leaveApproved').checked = true;
+  document.getElementById('rc_leaveApprovedBy').value = '';
+  document.getElementById('rc_leaveNote').value = '';
+  document.getElementById('rc_absenceApproved').checked = false;
+  document.getElementById('rc_absenceApprovedBy').value = '';
+  document.getElementById('rc_absenceNote').value = '';
+}
+function deleteRecord(id){
+  if(!confirm('حذف هذا السجل نهائيًا؟')) return;
+  records = records.filter(r=>r.id!==id); save(K.records, records); renderRecords();
+}
+// Opens the entry form for a given employee/date (used by the "days without a record" list).
+function startEntry(empId, date){
+  document.querySelector('nav.tabs button[data-tab="entry"]').click();
+  cancelEdit();
+  document.getElementById('rc_emp').value = empId;
+  document.getElementById('rc_date').value = date;
+  document.getElementById('rc_status').value = 'present'; toggleStatusFields();
+  document.getElementById('rc_in').value = ''; document.getElementById('rc_out').value = '';
+  document.getElementById('tab-entry').scrollIntoView({behavior:'smooth'});
+  document.getElementById('rc_in').focus();
+}
+const statusLabel = {present:'حاضر', absent:'غائب', leave:'إجازة', holiday:'عطلة رسمية'};
+// Builds the contextual "التفاصيل والاعتماد" text per record: leave shows its type + approval,
+// absence shows its approval, a present day shows delay/OT approval only if either actually
+// occurred that day, and a fully-on-time present day (or a holiday) shows "-".
+// Builds one "approved/not approved" chunk, adding the approver name and note when present.
+function approvalChunk(label, approved, approvedBy, note){
+  let s = `${label}: ${approved? 'معتمد':'غير معتمد'}`;
+  if(approvedBy) s += ` (${approvedBy})`;
+  if(note) s += ` — ${note}`;
+  return s;
+}
+function recordDetail(r){
+  const base = recordDetailBase(r);
+  if(r.status!=='holiday' && isOfficialHoliday(r.date)) return (base==='-' ? '' : base+' | ') + 'عطلة رسمية — غير محتسب';
+  return base;
+}
+function recordDetailBase(r){
+  if(r.status==='holiday') return '-';
+  if(r.status==='leave'){
+    const label = LEAVE_TYPES[r.leaveType] || 'إجازة';
+    return approvalChunk(label, r.leaveApproved, r.leaveApprovedBy, r.leaveNote);
+  }
+  if(r.status==='absent'){
+    return approvalChunk('غياب', r.absenceApproved, r.absenceApprovedBy, r.absenceNote);
+  }
+  const emp = employees.find(e=>e.id===r.empId);
+  const shift = emp ? shifts.find(s=>s.id===emp.shiftId) : null;
+  const d = computeDay(r, shift);
+  const hasDelay = (d.delayExcusedMin + d.delayUnexcusedMin) > 0;
+  const hasEarlyLeave = (d.earlyLeaveExcusedMin + d.earlyLeaveUnexcusedMin) > 0;
+  const dayTag = d.complianceExcludedDay ? 'يوم مستثنى من الالتزام' : '';
+  const exits = d.midExits.length ? d.midExits : (r.exits||[]).map(x=>({...x, minutes:null}));
+  if(!hasDelay && !hasEarlyLeave && !exits.length) return dayTag || '-';
+  const parts = [];
+  if(hasDelay){
+    let chunk = approvalChunk('تأخير', r.delayApproved, r.delayApprovedBy, r.delayNote);
+    if(r.delayApproved && r.delayApprovedMinutes>0) chunk += ` (المعتمد ${r.delayApprovedMinutes} د)`;
+    if(d.delayExcludedFromCompliance) chunk += ' [مستثنى من الالتزام]';
+    parts.push(chunk);
+  }
+  if(hasEarlyLeave){
+    let chunk = approvalChunk('خروج مبكر', r.earlyLeaveApproved, r.earlyLeaveApprovedBy, r.earlyLeaveNote);
+    if(r.earlyLeaveApproved && r.earlyLeaveApprovedMinutes>0) chunk += ` (المعتمد ${r.earlyLeaveApprovedMinutes} د)`;
+    if(d.earlyLeaveExcludedFromCompliance) chunk += ' [مستثنى من الالتزام]';
+    parts.push(chunk);
+  }
+  exits.forEach(ex=>{
+    const label = `خروج أثناء الدوام ${ex.out}–${ex.back}` + (ex.minutes!=null ? ` (${ex.minutes} د)` : '');
+    parts.push(approvalChunk(label, ex.approved, ex.approvedBy, ex.note));
+  });
+  if(dayTag) parts.push(dayTag);
+  return parts.join(' | ');
+}
+function renderRecords(){
+  const body = document.getElementById('recordsBody');
+  const searchTerm = document.getElementById('rf_search').value.trim().toLowerCase();
+  const filterEmp = document.getElementById('rf_emp').value;
+  const filterDate = document.getElementById('rf_date').value;
+  const filtered = records.filter(r=>{
+    if(filterEmp && r.empId!==filterEmp) return false;
+    if(filterDate && r.date!==filterDate) return false;
+    if(searchTerm){
+      const emp = employees.find(e=>e.id===r.empId);
+      const nameMatch = emp && emp.name.toLowerCase().includes(searchTerm);
+      const dateMatch = r.date.includes(searchTerm);
+      if(!nameMatch && !dateMatch) return false;
+    }
+    return true;
+  });
+  const sorted = [...filtered].sort((a,b)=> b.date.localeCompare(a.date)).slice(0,50);
+  body.innerHTML = sorted.map(r=>{
+    const emp = employees.find(e=>e.id===r.empId);
+    return `<tr><td data-label="الموظف"><strong>${emp?esc(emp.name):'—'}</strong></td><td data-label="التاريخ">${r.date} · ${AR_WEEKDAYS[dowOf(r.date)]}</td>
+    <td data-label="الحالة">${statusLabel[r.status]}</td>
+    <td data-label="حضور">${r.checkIn||'—'}</td><td data-label="انصراف">${r.checkOut||'—'}</td>
+    <td data-label="التفاصيل والاعتماد" class="rec-detail">${esc(recordDetail(r))}</td>
+    <td class="rec-actions"><button class="btn secondary small" onclick="editRecord('${r.empId}','${r.date}')">تعديل</button>
+    <button class="btn danger" onclick="deleteRecord('${r.id}')">حذف</button></td></tr>`;
+  }).join('');
+  const filtersActive = !!(searchTerm || filterEmp || filterDate);
+  document.getElementById('recordsEmpty').textContent = filtersActive ? 'لا توجد سجلات مطابقة للفلترة/البحث' : 'لا توجد سجلات بعد';
+  document.getElementById('recordsEmpty').style.display = sorted.length? 'none':'block';
+  renderBackupBanner();
+}
+
+/* ---------- Calculation engine ---------- */
+function toMinutes(hhmm){ if(!hhmm) return null; const [h,m] = String(hhmm).split(':').map(Number); return h*60+m; }
+// ===== Compliance rules (single source of truth) =====
+// Precedence for every day:
+//   A. Friday                       -> excluded globally (handled at the top of computeDay)
+//   B. Employee weekday exclusion   -> the whole day is outside the compliance calculation
+//      (if the weekday has a delay and/or early-leave allowance, the day stays in and only that much is ignored)
+//   C. Specific early-leave exclusion (approved + flagged) -> only that early leave is not deducted
+//   D. Global setting countEarlyLeaveInCompliance          -> existing behaviour
+// None of these touch the stored record; they only decide what enters the compliance numbers.
+// Minutes allowed on this date for this employee (0 = no allowance). kind: 'delay' | 'earlyLeave'
+function getWeekdayAllowanceMinutes(employee, isoDate, kind){
+  if(!employee || !Array.isArray(employee.complianceExcludedWeekdays)) return 0;
+  const dow = new Date(isoDate+'T00:00:00').getDay();
+  if(dow===5 || !employee.complianceExcludedWeekdays.includes(dow)) return 0;
+  const map = kind==='delay' ? employee.complianceDelayAllowances : employee.complianceEarlyLeaveAllowances;
+  const m = Number((map||{})[dow]);
+  return m>0 ? m : 0;
+}
+const getDelayAllowanceMinutes = (emp, d)=> getWeekdayAllowanceMinutes(emp, d, 'delay');
+const getEarlyLeaveAllowanceMinutes = (emp, d)=> getWeekdayAllowanceMinutes(emp, d, 'earlyLeave');
+// Whole day excluded = an excluded weekday with NO allowance at all (neither delay nor early leave).
+// With an allowance the day stays in the calculation; only the allowed minutes are ignored (see computeDay).
+function isWeekdayExcludedForCompliance(employee, isoDate){
+  if(!employee || !Array.isArray(employee.complianceExcludedWeekdays)) return false;
+  const dow = new Date(isoDate+'T00:00:00').getDay();
+  if(dow===5) return false; // Friday is already excluded upstream
+  return employee.complianceExcludedWeekdays.includes(dow)
+    && getDelayAllowanceMinutes(employee, isoDate)===0
+    && getEarlyLeaveAllowanceMinutes(employee, isoDate)===0;
+}
+function isDelayExcludedFromCompliance(rec){
+  return !!(rec && rec.delayApproved && rec.delayExcludedFromCompliance);
+}
+function isEarlyLeaveExcludedFromCompliance(rec){
+  return !!(rec && rec.earlyLeaveApproved && rec.earlyLeaveExcludedFromCompliance);
+}
+// Turns raw minutes of a present day into the numbers that count toward compliance.
+function calculateComplianceEligibleDay({official, lateInMin, earlyOutMin, weekdayExcluded, excludedDelayMin, excludedEarlyLeaveMin, midExitUnexcusedMin=0}){
+  if(weekdayExcluded){ // Rule B
+    return {complianceExcludedDay:true, complianceOfficial:0, complianceDelayMin:0,
+      complianceEarlyLeaveMin:0, complianceMidExitMin:0, complianceDeductionMin:0, delayExcludedFromCompliance:false, earlyLeaveExcludedFromCompliance:false};
+  }
+  // Exits during the shift: only the unapproved minutes count, and only when the setting is on.
+  const midExitMin = settings.countMidExitInCompliance ? midExitUnexcusedMin : 0;
+  // Rules C and D: the part of a delay / early leave excluded on its record never counts; early leave
+  // also counts only if the global setting is on.
+  const delayMin = lateInMin - excludedDelayMin;
+  const earlyLeaveMin = settings.countEarlyLeaveInCompliance ? earlyOutMin - excludedEarlyLeaveMin : 0;
+  return {complianceExcludedDay:false, complianceOfficial:official, complianceDelayMin:delayMin,
+    complianceEarlyLeaveMin:earlyLeaveMin, complianceMidExitMin:midExitMin, complianceDeductionMin:delayMin + earlyLeaveMin + midExitMin,
+    delayExcludedFromCompliance: excludedDelayMin>0, earlyLeaveExcludedFromCompliance: excludedEarlyLeaveMin>0};
+}
+// Reports must use the compliance* fields (not official/delay/earlyLeave minutes) for percentages.
+function newComplianceBucket(){ return {official:0, deduction:0, workDays:0}; }
+function addDayToComplianceBucket(bucket, d){
+  bucket.official += d.complianceOfficial;
+  bucket.deduction += d.complianceDeductionMin;
+  if(d.complianceOfficial>0) bucket.workDays++;
+}
+// A record that falls on a weekday excluded for its employee is kept in storage and in the records tab,
+// but it never appears in any report and never enters any total.
+function isRecordHiddenFromReports(rec){
+  const emp = employees.find(e=>e.id===rec.empId);
+  return isWeekdayExcludedForCompliance(emp, rec.date);
+}
+// Scheduled minutes of the employee's shift on that date (Thursday has its own end time).
+function officialMinutesFor(emp, iso){
+  const sh = emp ? shifts.find(s=>s.id===emp.shiftId) : null; if(!sh) return 0;
+  const end = dowOf(iso)===4 ? sh.endThu : sh.end;
+  return Math.max(0, toMinutes(end) - toMinutes(sh.start));
+}
+// Unapproved absence counts as a full lost day only when the setting is on (off = previous behaviour).
+function absencePenaltyMinutes(emp, rec){
+  if(!settings.countUnapprovedAbsenceInCompliance || rec.absenceApproved) return 0;
+  return officialMinutesFor(emp, rec.date);
+}
+// A working day for this employee: not Friday, not an official holiday, not a fully excluded weekday,
+// not before the employee's start date.
+function isWorkdayFor(emp, iso){
+  if(dowOf(iso)===5 || isOfficialHoliday(iso)) return false;
+  if(isWeekdayExcludedForCompliance(emp, iso)) return false;
+  if(emp.startDate && iso < emp.startDate) return false;
+  return true;
+}
+// Working days inside [from, to] (up to yesterday) that have no record at all for the employee.
+function findMissingDays(emp, from, to){
+  if(!from || !to) return [];
+  const yesterday = addDaysIso(ymd(new Date()), -1);
+  const end = to < yesterday ? to : yesterday;
+  const have = new Set(records.filter(r=>r.empId===emp.id).map(r=>r.date));
+  const out = [];
+  for(let iso = from, guard = 0; iso <= end && guard < 800; iso = addDaysIso(iso, 1), guard++){
+    if(isWorkdayFor(emp, iso) && !have.has(iso)) out.push(iso);
+  }
+  return out;
+}
+function compliancePercent(officialMin, deductionMin){
+  return officialMin>0 ? Math.max(0, (1 - deductionMin/officialMin) * 100) : 100;
+}
+
+// Splits minutes into [approved, unapproved]: an approved item may be limited to a number of minutes,
+// and only that part is approved (limit 0 = the whole amount).
+function splitApprovedMinutes(minutes, approved, limitMin){
+  const excused = approved ? (limitMin>0 ? Math.min(minutes, limitMin) : minutes) : 0;
+  return [excused, minutes - excused];
+}
+// Minutes of each exit that fall inside the shift window (an exit after the shift ends costs nothing).
+function computeMidExits(exits, shiftStart, shiftEnd){
+  const out = {midExits:[], midExitExcusedMin:0, midExitUnexcusedMin:0};
+  (exits||[]).forEach(ex=>{
+    const a = toMinutes(ex.out), b = toMinutes(ex.back);
+    if(a==null || b==null || b<=a) return;
+    const minutes = Math.max(0, Math.min(b, shiftEnd) - Math.max(a, shiftStart));
+    out.midExits.push({...ex, minutes});
+    if(ex.approved) out.midExitExcusedMin += minutes; else out.midExitUnexcusedMin += minutes;
+  });
+  return out;
+}
+// Raw fields (official, delay*/earlyLeave* minutes) describe what happened and never change because of
+// exclusions. The compliance* fields describe what counts toward the compliance percentage.
+function computeDay(rec, shift){
+  const dow = new Date(rec.date+'T00:00:00').getDay();
+  const result = {official:0, delayExcusedMin:0, delayUnexcusedMin:0,
+    earlyLeaveExcusedMin:0, earlyLeaveUnexcusedMin:0, isAbsent:false, isLeave:false,
+    complianceExcludedDay:false, complianceOfficial:0, complianceDelayMin:0,
+    complianceEarlyLeaveMin:0, complianceDeductionMin:0, delayExcludedFromCompliance:false, earlyLeaveExcludedFromCompliance:false,
+    reportDelayExcusedMin:0, reportDelayUnexcusedMin:0, reportEarlyLeaveExcusedMin:0, reportEarlyLeaveUnexcusedMin:0,
+    midExits:[], midExitExcusedMin:0, midExitUnexcusedMin:0, complianceMidExitMin:0};
+  if(dow===5 || isOfficialHoliday(rec.date)) return result; // Friday / official holiday: never counted
+  if(rec.status==='holiday') return result;
+  if(rec.status==='leave'){ result.isLeave = true; return result; }
+  if(rec.status==='absent'){ result.isAbsent = true; return result; }
+  if(!shift) return result;
+  const shiftEndStr = (dow===4) ? shift.endThu : shift.end;
+  const shiftStart = toMinutes(shift.start), shiftEnd = toMinutes(shiftEndStr);
+  const checkIn = toMinutes(rec.checkIn), checkOut = toMinutes(rec.checkOut);
+  if(checkIn==null || checkOut==null || shiftStart==null || shiftEnd==null) return result;
+  result.official = Math.max(0, shiftEnd - shiftStart);
+  const emp = employees.find(e=>e.id===rec.empId);
+  const rawLateIn = Math.max(0, checkIn - shiftStart);
+  // Only the delay above the larger of grace period / employee's weekday allowance is counted.
+  const lateIn = Math.max(0, rawLateIn - Math.max(settings.grace, getDelayAllowanceMinutes(emp, rec.date)));
+  // Only the early leave above the employee's weekday allowance is counted.
+  const earlyOut = Math.max(0, shiftEnd - checkOut - getEarlyLeaveAllowanceMinutes(emp, rec.date)); // الخروج المبكر عن موعد الانصراف فقط
+  // التأخير والخروج المبكر: كل منهما له اعتماد مستقل تمامًا عن الآخر.
+  // An approval may be limited to a number of minutes: only that part is approved, the rest is unapproved.
+  [result.delayExcusedMin, result.delayUnexcusedMin] = splitApprovedMinutes(lateIn, rec.delayApproved, Number(rec.delayApprovedMinutes));
+  [result.earlyLeaveExcusedMin, result.earlyLeaveUnexcusedMin] = splitApprovedMinutes(earlyOut, rec.earlyLeaveApproved, Number(rec.earlyLeaveApprovedMinutes));
+  Object.assign(result, computeMidExits(rec.exits, shiftStart, shiftEnd));
+  Object.assign(result, calculateComplianceEligibleDay({
+    midExitUnexcusedMin: result.midExitUnexcusedMin,
+    official: result.official, lateInMin: lateIn, earlyOutMin: earlyOut,
+    weekdayExcluded: isWeekdayExcludedForCompliance(emp, rec.date),
+    excludedDelayMin: isDelayExcludedFromCompliance(rec) ? result.delayExcusedMin : 0,
+    excludedEarlyLeaveMin: isEarlyLeaveExcludedFromCompliance(rec) ? result.earlyLeaveExcusedMin : 0
+  }));
+  // Reports never show the delay / early-leave part that is excluded from compliance (an unapproved excess is still shown).
+  // The raw minutes above are kept untouched (the records tab uses them); reports must use these report* fields.
+  result.reportDelayExcusedMin = result.delayExcludedFromCompliance ? 0 : result.delayExcusedMin;
+  result.reportDelayUnexcusedMin = result.delayUnexcusedMin;
+  result.reportEarlyLeaveExcusedMin = result.earlyLeaveExcludedFromCompliance ? 0 : result.earlyLeaveExcusedMin;
+  result.reportEarlyLeaveUnexcusedMin = result.earlyLeaveUnexcusedMin;
+  return result;
+}
+function formatMinutes(mins){
+  mins = Math.round(mins);
+  if(mins<=0) return '0 دقيقة';
+  const h = Math.floor(mins/60), m = mins%60;
+  let parts = [];
+  if(h>0) parts.push(h===1? '1 ساعة' : (h===2? 'ساعتان' : h+' ساعات'));
+  if(m>0) parts.push(m+' دقيقة');
+  return parts.join(' ');
+}
+const arMonths = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function formatDateAr(iso){
+  const [y,m,d] = iso.split('-').map(Number);
+  return `${d} ${arMonths[m-1]} ${y}م`;
+}
+
+/* ---------- Report filters ---------- */
+function setThisMonth(){
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  document.getElementById('rp_from').value = ymd(from);
+  document.getElementById('rp_to').value = ymd(to);
+  renderReport();
+}
+function setWeek(weeksBack){ // 0 = this week, 1 = last week
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun..6=Sat ; week runs Sat(6)->Thu(4)
+  const diffToSat = (day - 6 + 7) % 7;
+  const from = new Date(now); from.setDate(now.getDate()-diffToSat-7*weeksBack);
+  const to = new Date(from); to.setDate(from.getDate()+5);
+  document.getElementById('rp_from').value = ymd(from);
+  document.getElementById('rp_to').value = ymd(to);
+  renderReport();
+}
+function renderEmpChecklist(){
+  const wrap = document.getElementById('empChecklist');
+  if(!reportSelectionInit && employees.length){ employees.forEach(e=>selectedEmpIds.add(e.id)); saveSelectedEmp(); }
+  wrap.innerHTML = employees.map(e=>`<label>
+    <input type="checkbox" value="${e.id}" ${selectedEmpIds.has(e.id)?'checked':''} onchange="onEmpCheck('${e.id}', this.checked)">
+    ${esc(e.name)}</label>`).join('') || '<span class="empty-note">لا يوجد موظفون</span>';
+}
+function saveSelectedEmp(){ reportSelectionInit = true; save(K.reportEmployees, [...selectedEmpIds]); }
+function onEmpCheck(id, checked){ if(checked) selectedEmpIds.add(id); else selectedEmpIds.delete(id); saveSelectedEmp(); }
+function toggleAllEmp(state){
+  selectedEmpIds = new Set(state ? employees.map(e=>e.id) : []);
+  renderEmpChecklist();
+  saveSelectedEmp();
+}
+function setReportView(v){
+  reportView = v;
+  document.getElementById('viewSummaryBtn').classList.toggle('active', v==='summary');
+  document.getElementById('viewDetailBtn').classList.toggle('active', v==='detail');
+  document.getElementById('viewCustomBtn').classList.toggle('active', v==='custom');
+  document.getElementById('reportSummaryView').style.display = v==='summary'?'block':'none';
+  document.getElementById('reportDetailView').style.display = v==='detail'?'block':'none';
+  document.getElementById('reportCustomView').style.display = v==='custom'?'block':'none';
+  renderReport();
+}
+function inRange(rec, from, to){ return (!from || rec.date>=from) && (!to || rec.date<=to); }
+
+/* ---------- Report rendering ---------- */
+// Shared by the on-screen report and the Excel export, so both always use the same records.
+function getReportContext(){
+  const from = document.getElementById('rp_from').value;
+  const to = document.getElementById('rp_to').value;
+  const relevant = records.filter(r=> selectedEmpIds.has(r.empId) && inRange(r, from, to) && !isRecordHiddenFromReports(r));
+  return {from, to, relevant};
+}
+// Each render function draws the report AND returns the data it drew (used by the Excel export).
+function renderReport(){
+  const {from, to, relevant} = getReportContext();
+  if(reportView==='summary') return renderSummaryReport(relevant, from, to);
+  if(reportView==='custom') return renderCustomReport(relevant, from, to);
+  return renderDetailReport(relevant, from, to);
+}
+const pillCell = (v, cls)=> v ? `<span class="pill ${cls}">${v}</span>` : '<span class="pill zero">0</span>';
+// Movement counter: a movement is "with permission" only if fully approved; any unapproved part makes it
+// "without permission". Minutes are split exactly between the two.
+function newMoveCounter(){ return {okCount:0, badCount:0, okMin:0, badMin:0}; }
+function addMove(c, okMin, badMin){
+  if(okMin + badMin <= 0) return;
+  if(badMin > 0) c.badCount++; else c.okCount++;
+  c.okMin += okMin; c.badMin += badMin;
+}
+function moveApprovalText(okMin, badMin){
+  if(okMin>0 && badMin>0) return `جزئي: ${okMin} د بإذن + ${badMin} د بدون إذن`;
+  return badMin>0 ? 'بدون إذن' : 'بإذن';
+}
+function newMovementBucket(id, name){
+  return {id, name, delay:newMoveCounter(), early:newMoveCounter(), mid:newMoveCounter(),
+    absentApproved:0, absentUnapproved:0, leave:{annual:0, unpaid:0, emergency:0, sick:0}, total:0};
+}
+function movementTotal(b){
+  const c = x=> x.okCount + x.badCount;
+  return c(b.delay) + c(b.early) + c(b.mid) + b.absentApproved + b.absentUnapproved
+    + b.leave.annual + b.leave.unpaid + b.leave.emergency + b.leave.sick;
+}
+// One flat row of numbers per bucket — used by the screen table and the Excel export alike.
+function movementNumbers(b){
+  const g = x=> [x.okCount, x.badCount, x.okMin, x.badMin];
+  return [...g(b.delay), ...g(b.early), ...g(b.mid), b.absentApproved, b.absentUnapproved,
+    b.leave.annual, b.leave.unpaid, b.leave.emergency, b.leave.sick, b.total];
+}
+const MOVEMENT_HEADERS = (()=>{
+  const g = n=> [`${n} - مرات بإذن`, `${n} - مرات بدون إذن`, `${n} - دقائق بإذن`, `${n} - دقائق بدون إذن`];
+  return [...g('التأخير'), ...g('الخروج المبكر'), ...g('الخروج أثناء الدوام'), 'غياب بإذن (يوم)', 'غياب بدون إذن (يوم)',
+    'إجازة سنوية (يوم)', 'إجازة بدون مرتب (يوم)', 'إجازة اضطرارية (يوم)', 'إجازة مرضية (يوم)', 'إجمالي الحركات'];
+})();
+// Pill colour per column (same order as movementNumbers).
+const MOVEMENT_CLASSES = [
+  'excused','delay','excused','delay', 'excused','delay','excused','delay', 'excused','delay','excused','delay',
+  'excused','absent', 'ot','ot','ot','ot', 'mid'];
+// Columns that start a group get a separator line.
+const MOVEMENT_GROUP_START = new Set([0,4,8,12,14,18]);
+function movementCells(nums, tag){
+  return nums.map((v,i)=>`<${tag}${MOVEMENT_GROUP_START.has(i)?' class="gs"':''}>${tag==='td'? pillCell(v, MOVEMENT_CLASSES[i]) : `<strong>${v}</strong>`}</${tag}>`).join('');
+}
+// Movements report: how many times each kind of movement happened, per employee, plus a full movement log.
+function renderCustomReport(relevant, from, to){
+  const perEmp = {};
+  employees.filter(e=>selectedEmpIds.has(e.id)).forEach(e=> perEmp[e.id] = newMovementBucket(e.id, e.name));
+  const log = [];
+
+  relevant.forEach(rec=>{
+    const emp = employees.find(e=>e.id===rec.empId); if(!emp) return;
+    const b = perEmp[emp.id]; if(!b) return;
+    const shift = shifts.find(s=>s.id===emp.shiftId);
+    const d = computeDay(rec, shift);
+    const base = {name:emp.name, date:rec.date};
+    if(d.isAbsent){
+      if(rec.absenceApproved) b.absentApproved++; else b.absentUnapproved++;
+      log.push({...base, type:'absent', typeLabel:'غياب', time:'—', duration:'يوم كامل', ok:!!rec.absenceApproved,
+        approval:rec.absenceApproved?'بإذن':'بدون إذن', by:rec.absenceApprovedBy, note:rec.absenceNote, sortTime:''});
+      return;
+    }
+    if(d.isLeave){
+      if(b.leave[rec.leaveType]!==undefined) b.leave[rec.leaveType]++;
+      log.push({...base, type:'leave', typeLabel:LEAVE_TYPES[rec.leaveType]||'إجازة', time:'—', duration:'يوم كامل', ok:!!rec.leaveApproved,
+        approval:rec.leaveApproved?'معتمدة':'غير معتمدة', by:rec.leaveApprovedBy, note:rec.leaveNote, sortTime:''});
+      return;
+    }
+    if(!shift || d.official<=0) return;
+    const shiftEnd = dowOf(rec.date)===4 ? shift.endThu : shift.end;
+    const dOk = d.reportDelayExcusedMin, dBad = d.reportDelayUnexcusedMin;
+    if(dOk + dBad > 0){
+      addMove(b.delay, dOk, dBad);
+      log.push({...base, type:'delay', typeLabel:'تأخير', time:`حضر ${rec.checkIn} (البداية ${shift.start})`, duration:formatMinutes(dOk+dBad),
+        minutes:dOk+dBad, ok:dBad===0, approval:moveApprovalText(dOk, dBad), by:rec.delayApprovedBy, note:rec.delayNote, sortTime:rec.checkIn});
+    }
+    d.midExits.forEach(ex=>{
+      if(ex.minutes<=0) return;
+      addMove(b.mid, ex.approved?ex.minutes:0, ex.approved?0:ex.minutes);
+      log.push({...base, type:'mid', typeLabel:'خروج أثناء الدوام', time:`من ${ex.out} إلى ${ex.back}`, duration:formatMinutes(ex.minutes),
+        minutes:ex.minutes, ok:!!ex.approved, approval:ex.approved?'بإذن':'بدون إذن', by:ex.approvedBy, note:ex.note, sortTime:ex.out});
+    });
+    const eOk = d.reportEarlyLeaveExcusedMin, eBad = d.reportEarlyLeaveUnexcusedMin;
+    if(eOk + eBad > 0){
+      addMove(b.early, eOk, eBad);
+      log.push({...base, type:'early', typeLabel:'خروج مبكر', time:`انصرف ${rec.checkOut} (النهاية ${shiftEnd})`, duration:formatMinutes(eOk+eBad),
+        minutes:eOk+eBad, ok:eBad===0, approval:moveApprovalText(eOk, eBad), by:rec.earlyLeaveApprovedBy, note:rec.earlyLeaveNote, sortTime:rec.checkOut});
+    }
+  });
+
+  const totals = newMovementBucket('', 'الإجمالي');
+  Object.values(perEmp).forEach(b=>{
+    b.total = movementTotal(b);
+    ['delay','early','mid'].forEach(k=> ['okCount','badCount','okMin','badMin'].forEach(f=> totals[k][f] += b[k][f]));
+    totals.absentApproved += b.absentApproved; totals.absentUnapproved += b.absentUnapproved;
+    Object.keys(totals.leave).forEach(k=> totals.leave[k] += b.leave[k]);
+  });
+  totals.total = movementTotal(totals);
+
+  const cnt = c=> c.okCount + c.badCount;
+  const leaveDays = Object.values(totals.leave).reduce((a,b)=>a+b, 0);
+  document.getElementById('customPeriodLabel').textContent = (from&&to) ? `(${from} — ${to})` : '';
+  document.getElementById('customKpiGrid').innerHTML = `
+    <div class="kpi delay"><div class="val">${cnt(totals.delay)}</div><div class="lbl">مرات التأخير</div><div class="sub">منها ${totals.delay.badCount} بدون إذن — ${totals.delay.badMin} د</div></div>
+    <div class="kpi delay"><div class="val">${cnt(totals.early)}</div><div class="lbl">مرات الخروج المبكر</div><div class="sub">منها ${totals.early.badCount} بدون إذن — ${totals.early.badMin} د</div></div>
+    <div class="kpi delay"><div class="val">${cnt(totals.mid)}</div><div class="lbl">مرات الخروج أثناء الدوام</div><div class="sub">منها ${totals.mid.badCount} بدون إذن — ${totals.mid.badMin} د</div></div>
+    <div class="kpi absent"><div class="val">${totals.absentApproved + totals.absentUnapproved}</div><div class="lbl">أيام الغياب</div><div class="sub">منها ${totals.absentUnapproved} بدون إذن</div></div>
+    <div class="kpi ot"><div class="val">${leaveDays}</div><div class="lbl">أيام الإجازات</div><div class="sub">سنوية ${totals.leave.annual} · مرضية ${totals.leave.sick}</div></div>
+    <div class="kpi pct"><div class="val">${totals.total}</div><div class="lbl">إجمالي الحركات</div></div>`;
+
+  const rows = Object.values(perEmp).filter(b=> b.total>0);
+  document.getElementById('customReportBody').innerHTML = rows.map(b=>
+    `<tr><td>${esc(b.name)}</td>${movementCells(movementNumbers(b), 'td')}</tr>`).join('');
+  document.getElementById('customReportTotalsRow').innerHTML = rows.length
+    ? `<td><strong>الإجمالي</strong></td>${movementCells(movementNumbers(totals), 'td')}` : '';
+  document.getElementById('customReportEmpty').style.display = rows.length? 'none':'block';
+
+  // Movement log: filtered by type and approval, ordered by employee, date, time.
+  const typeF = document.getElementById('mvTypeFilter').value;
+  const apprF = document.getElementById('mvApprovalFilter').value;
+  const shown = log.filter(m=> (!typeF || m.type===typeF) && (!apprF || (apprF==='ok') === m.ok))
+    .sort((a,b)=> a.name.localeCompare(b.name,'ar') || a.date.localeCompare(b.date) || a.sortTime.localeCompare(b.sortTime));
+  const typeCls = {delay:'delay', early:'delay', mid:'mid', absent:'absent', leave:'ot'};
+  document.getElementById('moveLogBody').innerHTML = shown.map(m=>
+    `<tr><td>${esc(m.name)}</td><td>${m.date}</td><td>${AR_WEEKDAYS[dowOf(m.date)]}</td>
+     <td><span class="pill ${typeCls[m.type]}">${esc(m.typeLabel)}</span></td><td>${esc(m.time)}</td><td>${esc(m.duration)}</td>
+     <td><span class="pill ${m.ok?'excused':'absent'}">${esc(m.approval)}</span></td>
+     <td>${esc(m.by||'—')}</td><td>${esc(m.note||'—')}</td></tr>`).join('');
+  document.getElementById('moveLogCount').textContent = `(${shown.length} حركة)`;
+  document.getElementById('moveLogEmpty').style.display = shown.length? 'none':'block';
+  return {kind:'custom', from, to, rows, totals, log:shown};
+}
+function renderSummaryReport(relevant, from, to){
+  let totals = {delayExcusedMin:0, delayUnexcusedMin:0,
+    earlyLeaveExcusedMin:0, earlyLeaveUnexcusedMin:0, midExitExcusedMin:0, midExitUnexcusedMin:0,
+    absentApproved:0, absentUnapproved:0, leaveDays:0, missingDays:0};
+  const totalsComp = newComplianceBucket();
+  const perEmp = {};
+  employees.filter(e=>selectedEmpIds.has(e.id)).forEach(e=>{
+    const missing = findMissingDays(e, from, to);
+    totals.missingDays += missing.length;
+    perEmp[e.id] = {id:e.id, name:e.name, comp:newComplianceBucket(),
+    delayExcusedMin:0, delayUnexcusedMin:0, earlyLeaveExcusedMin:0, earlyLeaveUnexcusedMin:0,
+    midExitExcusedMin:0, midExitUnexcusedMin:0, absentApproved:0, absentUnapproved:0, leaveDays:0, missing};
+  });
+  relevant.forEach(rec=>{
+    const emp = employees.find(e=>e.id===rec.empId); if(!emp) return;
+    const shift = shifts.find(s=>s.id===emp.shiftId);
+    const d = computeDay(rec, shift);
+    const bucket = perEmp[emp.id]; if(!bucket) return;
+    if(d.isAbsent){
+      if(rec.absenceApproved){ bucket.absentApproved++; totals.absentApproved++; } else { bucket.absentUnapproved++; totals.absentUnapproved++; }
+      const lost = absencePenaltyMinutes(emp, rec);
+      bucket.comp.official += lost; bucket.comp.deduction += lost;
+      totalsComp.official += lost; totalsComp.deduction += lost;
+      return;
+    }
+    if(d.isLeave){ bucket.leaveDays++; totals.leaveDays++; return; }
+    addDayToComplianceBucket(bucket.comp, d); addDayToComplianceBucket(totalsComp, d);
+    bucket.delayExcusedMin += d.reportDelayExcusedMin; bucket.delayUnexcusedMin += d.reportDelayUnexcusedMin;
+    bucket.earlyLeaveExcusedMin += d.reportEarlyLeaveExcusedMin; bucket.earlyLeaveUnexcusedMin += d.reportEarlyLeaveUnexcusedMin;
+    totals.delayExcusedMin += d.reportDelayExcusedMin; totals.delayUnexcusedMin += d.reportDelayUnexcusedMin;
+    totals.earlyLeaveExcusedMin += d.reportEarlyLeaveExcusedMin; totals.earlyLeaveUnexcusedMin += d.reportEarlyLeaveUnexcusedMin;
+    bucket.midExitExcusedMin += d.midExitExcusedMin; bucket.midExitUnexcusedMin += d.midExitUnexcusedMin;
+    totals.midExitExcusedMin += d.midExitExcusedMin; totals.midExitUnexcusedMin += d.midExitUnexcusedMin;
+  });
+  const compliancePct = compliancePercent(totalsComp.official, totalsComp.deduction);
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi pct"><div class="val">${compliancePct.toFixed(1)}%</div><div class="lbl">نسبة الالتزام العامة</div></div>
+    <div class="kpi delay"><div class="val">${totals.delayUnexcusedMin}</div><div class="lbl">تأخير بدون إذن (دقيقة)</div></div>
+    <div class="kpi ot"><div class="val">${totals.delayExcusedMin}</div><div class="lbl">تأخير بإذن (دقيقة)</div></div>
+    <div class="kpi delay"><div class="val">${totals.earlyLeaveUnexcusedMin}</div><div class="lbl">خروج مبكر بدون إذن (دقيقة)</div></div>
+    <div class="kpi ot"><div class="val">${totals.earlyLeaveExcusedMin}</div><div class="lbl">خروج مبكر بإذن (دقيقة)</div></div>
+    <div class="kpi delay"><div class="val">${totals.midExitUnexcusedMin}</div><div class="lbl">خروج أثناء الدوام بدون إذن (دقيقة)</div></div>
+    <div class="kpi ot"><div class="val">${totals.midExitExcusedMin}</div><div class="lbl">خروج أثناء الدوام بإذن (دقيقة)</div></div>
+    <div class="kpi absent"><div class="val">${totals.absentUnapproved}</div><div class="lbl">غياب بدون إذن (يوم)</div></div>
+    <div class="kpi excused-kpi"><div class="val">${totals.absentApproved}</div><div class="lbl">غياب بإذن (يوم)</div></div>
+    <div class="kpi ot"><div class="val">${totals.leaveDays}</div><div class="lbl">أيام الإجازة</div></div>
+    <div class="kpi excused-kpi"><div class="val">${totals.missingDays}</div><div class="lbl">أيام عمل بدون سجل</div></div>`;
+  const rows = Object.values(perEmp).filter(e=> e.comp.official>0 || e.absentApproved || e.absentUnapproved || e.leaveDays || e.missing.length ||
+    e.delayExcusedMin || e.delayUnexcusedMin || e.earlyLeaveExcusedMin || e.earlyLeaveUnexcusedMin || e.midExitExcusedMin || e.midExitUnexcusedMin);
+  const body = document.getElementById('reportBody');
+  body.innerHTML = rows.map(e=>{
+    const pct = compliancePercent(e.comp.official, e.comp.deduction);
+    const pctCell = `<strong>${pct.toFixed(1)}%</strong>`;
+    return `<tr><td>${esc(e.name)}</td><td>${e.comp.workDays}</td>
+      <td>${(e.comp.official/60).toFixed(2)} ساعة</td>
+      <td>${e.delayExcusedMin? `<span class="pill excused">${e.delayExcusedMin}</span>`:'<span class="pill zero">0</span>'}</td>
+      <td>${e.delayUnexcusedMin? `<span class="pill delay">${e.delayUnexcusedMin}</span>`:'<span class="pill zero">0</span>'}</td>
+      <td>${e.earlyLeaveExcusedMin? `<span class="pill excused">${e.earlyLeaveExcusedMin}</span>`:'<span class="pill zero">0</span>'}</td>
+      <td>${e.earlyLeaveUnexcusedMin? `<span class="pill delay">${e.earlyLeaveUnexcusedMin}</span>`:'<span class="pill zero">0</span>'}</td>
+      <td>${pillCell(e.midExitExcusedMin,'excused')}</td>
+      <td>${pillCell(e.midExitUnexcusedMin,'delay')}</td>
+      <td>${e.absentApproved? `<span class="pill excused">${e.absentApproved}</span>`:'<span class="pill zero">0</span>'}</td>
+      <td>${e.absentUnapproved? `<span class="pill absent">${e.absentUnapproved}</span>`:'<span class="pill zero">0</span>'}</td>
+      <td>${e.leaveDays? `<span class="pill ot">${e.leaveDays}</span>`:'<span class="pill zero">0</span>'}</td>
+      <td>${e.missing.length? `<span class="pill excused">${e.missing.length}</span>`:'<span class="pill zero">0</span>'}</td>
+      <td>${e.comp.deduction}</td>
+      <td>${pctCell}</td></tr>`;
+  }).join('');
+  document.getElementById('reportEmpty').style.display = rows.length? 'none':'block';
+  const missingRows = rows.filter(e=>e.missing.length);
+  document.getElementById('missingBody').innerHTML = missingRows.map(e=>
+    `<tr><td>${esc(e.name)}</td><td><span class="pill excused">${e.missing.length}</span></td>
+     <td>${e.missing.map(d=>`<button class="date-chip" title="${AR_WEEKDAYS[dowOf(d)]}" onclick="startEntry('${esc(e.id)}','${d}')">${d}</button>`).join('')}</td></tr>`
+  ).join('');
+  document.getElementById('missingEmpty').textContent = (from&&to) ? 'لا توجد أيام ناقصة في هذه الفترة' : 'حدّد «من تاريخ» و«إلى تاريخ» لفحص الأيام الناقصة';
+  document.getElementById('missingEmpty').style.display = missingRows.length? 'none':'block';
+  return {kind:'summary', rows, totals, totalsComp, compliancePct};
+}
+// Status of a detail early-leave row; a partly approved early leave shows both parts.
+function earlyLeaveStatusText(r){
+  if(r.excusedMin>0 && r.unexcusedMin>0) return `بإذن ${r.excusedMin} د + بدون إذن ${r.unexcusedMin} د`;
+  return r.excused ? 'بإذن' : 'بدون إذن';
+}
+function renderDetailReport(relevant, from, to){
+  // Percentages below are based only on days eligible for compliance (see computeDay).
+  let totals = {delayExcusedMin:0, delayUnexcusedMin:0, earlyLeaveExcusedMin:0, earlyLeaveUnexcusedMin:0, midExitExcusedMin:0, midExitUnexcusedMin:0};
+  const comp = newComplianceBucket();
+  const midExitRows = [];
+  const delayRows = [];
+  const earlyLeaveRows = [];
+  const leaveRows = []; // one row per leave/absence day, with date, approver and note
+  const dailyHoursSet = new Set();
+  const workingDates = new Set();
+
+  relevant.forEach(rec=>{
+    const emp = employees.find(e=>e.id===rec.empId); if(!emp) return;
+    const shift = shifts.find(s=>s.id===emp.shiftId);
+    const dow = new Date(rec.date+'T00:00:00').getDay();
+    const d = computeDay(rec, shift);
+    if(d.isAbsent){
+      leaveRows.push({name:emp.name, date:rec.date, type:'غياب', approved:rec.absenceApproved,
+        approvedBy:rec.absenceApprovedBy, note:rec.absenceNote});
+      const lost = absencePenaltyMinutes(emp, rec);
+      comp.official += lost; comp.deduction += lost;
+      return;
+    }
+    if(d.isLeave){
+      leaveRows.push({name:emp.name, date:rec.date, type:LEAVE_TYPES[rec.leaveType]||'إجازة', approved:rec.leaveApproved,
+        approvedBy:rec.leaveApprovedBy, note:rec.leaveNote});
+      return;
+    }
+    if(d.official<=0) return;
+    addDayToComplianceBucket(comp, d);
+    const dayDelay = d.reportDelayExcusedMin + d.reportDelayUnexcusedMin;
+    const dayEarlyLeave = d.reportEarlyLeaveExcusedMin + d.reportEarlyLeaveUnexcusedMin;
+    if(!d.complianceExcludedDay){
+      workingDates.add(rec.date);
+      if(shift){ const dh = (dow===4? toMinutes(shift.endThu):toMinutes(shift.end)) - toMinutes(shift.start); dailyHoursSet.add(dh); }
+      totals.delayExcusedMin += d.reportDelayExcusedMin; totals.delayUnexcusedMin += d.reportDelayUnexcusedMin;
+      totals.earlyLeaveExcusedMin += d.reportEarlyLeaveExcusedMin; totals.earlyLeaveUnexcusedMin += d.reportEarlyLeaveUnexcusedMin;
+      totals.midExitExcusedMin += d.midExitExcusedMin; totals.midExitUnexcusedMin += d.midExitUnexcusedMin;
+    }
+    d.midExits.forEach(ex=>{ if(ex.minutes>0) midExitRows.push({name:emp.name, date:rec.date, out:ex.out, back:ex.back, minutes:ex.minutes,
+      excused:ex.approved, approvedBy:ex.approvedBy, note:ex.note}); });
+    // Delays/early leaves already exclude everything that does not count (grace, allowances, flagged records).
+    if(dayDelay>0){
+      const excused = d.reportDelayExcusedMin>0;
+      delayRows.push({name:emp.name, date:rec.date, minutes:dayDelay, excused, approvedBy:rec.delayApprovedBy, note:rec.delayNote,
+        });
+    }
+    if(dayEarlyLeave>0){
+      const excused = d.reportEarlyLeaveExcusedMin>0;
+      earlyLeaveRows.push({name:emp.name, date:rec.date, minutes:dayEarlyLeave, excused, excusedMin:d.reportEarlyLeaveExcusedMin, unexcusedMin:d.reportEarlyLeaveUnexcusedMin,
+        approvedBy:rec.earlyLeaveApprovedBy, note:rec.earlyLeaveNote});
+    }
+  });
+
+  const totalDelay = totals.delayExcusedMin + totals.delayUnexcusedMin;
+  const totalEarlyLeave = totals.earlyLeaveExcusedMin + totals.earlyLeaveUnexcusedMin;
+  const actualHours = Math.max(0, comp.official - comp.deduction)/60;
+  const officialHours = comp.official/60;
+  const compliance = compliancePercent(comp.official, comp.deduction);
+  const pctOf = mins => comp.official>0 ? (mins/comp.official*100) : 0;
+
+  document.getElementById('detailPeriodLabel').textContent = (from&&to) ? `(${from} — ${to})` : '';
+  const dailyHoursText = dailyHoursSet.size===1 ? (([...dailyHoursSet][0]/60).toFixed(2)+' ساعات') : (dailyHoursSet.size>1 ? 'متعدد الورديات' : '—');
+  document.getElementById('ds_dailyHours').textContent = dailyHoursText;
+  document.getElementById('ds_days').textContent = workingDates.size + ' يوم';
+  document.getElementById('ds_dateRange').textContent = (from&&to) ? `${formatDateAr(from)} – ${formatDateAr(to)}` : '—';
+  document.getElementById('ds_actualHours').textContent = actualHours.toFixed(2)+' ساعة';
+  document.getElementById('ds_officialHours').textContent = officialHours.toFixed(2)+' ساعة';
+  document.getElementById('ds_compliance').innerHTML = `<strong>${compliance.toFixed(2)}%</strong> = 100% × ${actualHours.toFixed(2)} / ${officialHours.toFixed(2)}
+    <div style="font-weight:400;color:var(--ink-soft);font-size:12px;margin-top:4px;">${settings.countEarlyLeaveInCompliance? 'الخروج المبكر محتسَب ضمن نسبة الالتزام' : 'الخروج المبكر غير محتسَب ضمن نسبة الالتزام'} — ${settings.countUnapprovedAbsenceInCompliance? 'الغياب غير المعتمد محتسَب كيوم كامل' : 'الغياب غير المعتمد غير محتسَب'} — ${settings.countMidExitInCompliance? 'الخروج أثناء الدوام غير المعتمد محتسَب' : 'الخروج أثناء الدوام غير محتسَب'}</div>`;
+  document.getElementById('ds_delayPct').textContent = pctOf(totalDelay).toFixed(2)+'%';
+  document.getElementById('ds_delayExcPct').textContent = pctOf(totals.delayExcusedMin).toFixed(2)+'%';
+  document.getElementById('ds_delayUnexcPct').textContent = pctOf(totals.delayUnexcusedMin).toFixed(2)+'%';
+  document.getElementById('ds_earlyLeavePct').textContent = pctOf(totalEarlyLeave).toFixed(2)+'%';
+  document.getElementById('ds_earlyLeaveExcPct').textContent = pctOf(totals.earlyLeaveExcusedMin).toFixed(2)+'%';
+  document.getElementById('ds_earlyLeaveUnexcPct').textContent = pctOf(totals.earlyLeaveUnexcusedMin).toFixed(2)+'%';
+  const totalMidExit = totals.midExitExcusedMin + totals.midExitUnexcusedMin;
+  document.getElementById('ds_midExitPct').textContent = pctOf(totalMidExit).toFixed(2)+'%';
+  document.getElementById('ds_midExitExcPct').textContent = pctOf(totals.midExitExcusedMin).toFixed(2)+'%';
+  document.getElementById('ds_midExitUnexcPct').textContent = pctOf(totals.midExitUnexcusedMin).toFixed(2)+'%';
+  midExitRows.sort((a,b)=> a.date.localeCompare(b.date) || a.out.localeCompare(b.out));
+  document.getElementById('detailMidExitBody').innerHTML = midExitRows.map(r=>
+    `<tr><td>${esc(r.name)}</td><td>${r.date}</td><td>${r.out}</td><td>${r.back}</td><td>${formatMinutes(r.minutes)}</td>
+    <td><span class="pill ${r.excused?'excused':'delay'}">${r.excused?'بإذن':'بدون إذن'}</span></td>
+    <td>${esc(r.approvedBy||'—')}</td><td>${esc(r.note||'—')}</td></tr>`
+  ).join('');
+  document.getElementById('detailMidExitEmpty').style.display = midExitRows.length? 'none':'block';
+
+  delayRows.sort((a,b)=> a.date.localeCompare(b.date));
+  document.getElementById('detailDelayBody').innerHTML = delayRows.map(r=>
+    `<tr><td>${esc(r.name)}</td><td>${r.date}</td><td>${formatMinutes(r.minutes)} ${r.excused?'بإذن':'بدون إذن'}</td>
+    <td>${esc(r.approvedBy||'—')}</td><td>${esc(r.note||'—')}</td></tr>`
+  ).join('');
+  document.getElementById('detailDelayEmpty').style.display = delayRows.length? 'none':'block';
+
+  earlyLeaveRows.sort((a,b)=> a.date.localeCompare(b.date));
+  document.getElementById('detailEarlyLeaveBody').innerHTML = earlyLeaveRows.map(r=>
+    `<tr><td>${esc(r.name)}</td><td>${r.date}</td><td>${formatMinutes(r.minutes)} ${earlyLeaveStatusText(r)}</td>
+    <td>${esc(r.approvedBy||'—')}</td><td>${esc(r.note||'—')}</td></tr>`
+  ).join('');
+  document.getElementById('detailEarlyLeaveEmpty').style.display = earlyLeaveRows.length? 'none':'block';
+
+  leaveRows.sort((a,b)=> a.date.localeCompare(b.date));
+  document.getElementById('detailLeaveBody').innerHTML = leaveRows.map(r=>
+    `<tr><td>${esc(r.name)}</td><td>${r.date}</td><td>${esc(r.type)}</td>
+    <td><span class="pill ${r.approved?'excused':'absent'}">${r.approved?'معتمد':'غير معتمد'}</span></td>
+    <td>${esc(r.approvedBy||'—')}</td><td>${esc(r.note||'—')}</td></tr>`
+  ).join('');
+  document.getElementById('detailLeaveEmpty').style.display = leaveRows.length? 'none':'block';
+  // [label, value, number format] - same values that were just written to the screen.
+  const stats = [
+    ['عدد ساعات العمل اليومية', dailyHoursText],
+    ['عدد الأيام', workingDates.size],
+    ['التاريخ', (from&&to) ? `${from} – ${to}` : '—'],
+    ['إجمالي عدد ساعات الحضور الفعلية خلال الفترة', +actualHours.toFixed(2), '0.00'],
+    ['إجمالي ساعات الدوام الرسمي للفترة', +officialHours.toFixed(2), '0.00'],
+    ['نسبة الالتزام (%)', +compliance.toFixed(2), '0.00'],
+    ['نسبة التأخير (%)', +pctOf(totalDelay).toFixed(2), '0.00'],
+    ['تأخير بإذن (%)', +pctOf(totals.delayExcusedMin).toFixed(2), '0.00'],
+    ['تأخير بدون إذن (%)', +pctOf(totals.delayUnexcusedMin).toFixed(2), '0.00'],
+    ['نسبة الخروج المبكر (%)', +pctOf(totalEarlyLeave).toFixed(2), '0.00'],
+    ['خروج مبكر بإذن (%)', +pctOf(totals.earlyLeaveExcusedMin).toFixed(2), '0.00'],
+    ['خروج مبكر بدون إذن (%)', +pctOf(totals.earlyLeaveUnexcusedMin).toFixed(2), '0.00'],
+    ['نسبة الخروج أثناء الدوام (%)', +pctOf(totalMidExit).toFixed(2), '0.00'],
+    ['خروج أثناء الدوام بإذن (%)', +pctOf(totals.midExitExcusedMin).toFixed(2), '0.00'],
+    ['خروج أثناء الدوام بدون إذن (%)', +pctOf(totals.midExitUnexcusedMin).toFixed(2), '0.00']
+  ];
+  return {kind:'detail', from, to, stats, delayRows, earlyLeaveRows, midExitRows, leaveRows};
+}
+
+/* ---------- Excel export ---------- */
+// Builds a sheet: title, period, (optional note), blank row, header, data rows, optional totals row.
+function buildReportSheet({title, period, note, headers, rows, totalsRow, formats}){
+  const aoa = [[title], [period]];
+  if(note) aoa.push([note]);
+  aoa.push([]);
+  const headerRowIdx = aoa.length;
+  aoa.push(headers);
+  rows.forEach(r=>aoa.push(r));
+  if(totalsRow) aoa.push(totalsRow);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = headers.map((h,i)=>({wch: Math.min(60, Math.max(12, String(h).length+4,
+    ...rows.map(r=>String(r[i]==null?'':r[i]).length+2)))}));
+  ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:Math.max(0, headers.length-1)}}];
+  if(formats){
+    for(let r=headerRowIdx+1; r<aoa.length; r++){
+      formats.forEach((fmt,c)=>{ if(!fmt) return; const cell = ws[XLSX.utils.encode_cell({r,c})]; if(cell && typeof cell.v==='number') cell.z = fmt; });
+    }
+  }
+  return ws;
+}
+function exportReportToExcel(){
+  if(typeof XLSX==='undefined'){ alert('مكتبة Excel غير محمّلة. أعد تحميل الصفحة وحاول مرة أخرى.'); return; }
+  const data = renderReport();           // same calculation path as the screen
+  const {from, to} = getReportContext();
+  const period = (from||to) ? `الفترة: ${from||'—'} إلى ${to||'—'}` : 'الفترة: كل السجلات';
+  const note = 'الأيام المستثناة للموظف لا تظهر ولا تدخل في الحساب.';
+  const wb = XLSX.utils.book_new();
+  const add = (ws, name)=> XLSX.utils.book_append_sheet(wb, ws, name);
+  let label;
+
+  if(data.kind==='summary'){
+    label = 'ملخص';
+    const t = data.totals, tc = data.totalsComp;
+    const rows = data.rows.map(e=>[e.name, e.comp.workDays, +(e.comp.official/60).toFixed(2),
+      e.delayExcusedMin, e.delayUnexcusedMin, e.earlyLeaveExcusedMin, e.earlyLeaveUnexcusedMin,
+      e.midExitExcusedMin, e.midExitUnexcusedMin,
+      e.absentApproved, e.absentUnapproved, e.leaveDays, e.missing.length, e.comp.deduction,
+      +compliancePercent(e.comp.official, e.comp.deduction).toFixed(1)]);
+    const totalsRow = ['الإجمالي', tc.workDays, +(tc.official/60).toFixed(2), t.delayExcusedMin, t.delayUnexcusedMin,
+      t.earlyLeaveExcusedMin, t.earlyLeaveUnexcusedMin, t.midExitExcusedMin, t.midExitUnexcusedMin,
+      t.absentApproved, t.absentUnapproved, t.leaveDays, t.missingDays,
+      tc.deduction, +data.compliancePct.toFixed(1)];
+    add(buildReportSheet({title:'الملخص الإجمالي - نسبة الالتزام', period, note,
+      headers:['الموظف','أيام الدوام','ساعات الدوام المحتسبة','تأخير معتمد (د)','تأخير غير معتمد (د)',
+        'خروج مبكر معتمد (د)','خروج مبكر غير معتمد (د)','خروج أثناء الدوام معتمد (د)','خروج أثناء الدوام غير معتمد (د)',
+        'غياب معتمد','غياب غير معتمد','أيام الإجازة','أيام بدون سجل','خصم الالتزام (د)','نسبة الالتزام (%)'],
+      rows, totalsRow, formats:[null,null,'0.00',null,null,null,null,null,null,null,null,null,null,null,'0.0']}), 'الملخص الإجمالي');
+    const missingRows = data.rows.filter(e=>e.missing.length);
+    if(missingRows.length) add(buildReportSheet({title:'أيام عمل بدون أي سجل', period,
+      headers:['الموظف','العدد','التواريخ'], rows:missingRows.map(e=>[e.name, e.missing.length, e.missing.join('، ')])}), 'أيام بدون سجل');
+  } else if(data.kind==='custom'){
+    label = 'الحركات';
+    add(buildReportSheet({title:'عدد الحركات حسب النوع', period, note,
+      headers:['الموظف', ...MOVEMENT_HEADERS],
+      rows:data.rows.map(b=>[b.name, ...movementNumbers(b)]),
+      totalsRow:['الإجمالي', ...movementNumbers(data.totals)]}), 'عدد الحركات');
+    add(buildReportSheet({title:'سجل الحركات التفصيلي', period,
+      headers:['الموظف','التاريخ','اليوم','نوع الحركة','الوقت','المدة (د)','الاعتماد','المعتمِد','السبب / الملاحظة'],
+      rows:data.log.map(m=>[m.name, m.date, AR_WEEKDAYS[dowOf(m.date)], m.typeLabel, m.time,
+        m.minutes!=null ? m.minutes : m.duration, m.approval, m.by||'', m.note||''])}), 'سجل الحركات');
+  } else {
+    label = 'تفصيلي';
+    add(buildReportSheet({title:'حساب نسبة الالتزام بالدوام الرسمي', period, note, headers:['البند','القيمة'],
+      rows:data.stats.map(r=>[r[0], r[1]]), formats:[null,'0.00']}), 'الإحصائيات');
+    add(buildReportSheet({title:'تفصيل التأخير', period, headers:['الاسم','التاريخ','إجمالي التأخير (د)','الحالة','المعتمِد','ملاحظة'],
+      rows:data.delayRows.map(r=>[r.name, r.date, r.minutes, r.excused?'بإذن':'بدون إذن', r.approvedBy||'', r.note||''])}), 'التأخير');
+    add(buildReportSheet({title:'تفصيل الخروج المبكر', period,
+      headers:['الاسم','التاريخ','إجمالي الخروج المبكر (د)','الحالة','المعتمِد','ملاحظة'],
+      rows:data.earlyLeaveRows.map(r=>[r.name, r.date, r.minutes, earlyLeaveStatusText(r), r.approvedBy||'', r.note||''])}), 'الخروج المبكر');
+    add(buildReportSheet({title:'تفصيل الخروج أثناء الدوام', period,
+      headers:['الاسم','التاريخ','من','إلى','المدة (د)','الحالة','المعتمِد','ملاحظة'],
+      rows:data.midExitRows.map(r=>[r.name, r.date, r.out, r.back, r.minutes, r.excused?'بإذن':'بدون إذن', r.approvedBy||'', r.note||''])}), 'الخروج أثناء الدوام');
+    add(buildReportSheet({title:'الإجازات والغياب', period, headers:['الاسم','التاريخ','النوع','الاعتماد','المعتمِد','ملاحظة'],
+      rows:data.leaveRows.map(r=>[r.name, r.date, r.type, r.approved?'معتمد':'غير معتمد', r.approvedBy||'', r.note||''])}), 'الإجازات والغياب');
+  }
+  wb.Workbook = {Views:[{RTL:true}]};   // right-to-left sheets for Arabic
+  // Latin file names: some browsers replace non-Latin names with a generic "download".
+  const slug = {'ملخص':'summary','الحركات':'movements','تفصيلي':'detail'}[label] || 'report';
+  saveXlsx(wb, `attendance-${slug}-${from||'start'}_${to||'end'}.xlsx`);
+}
+
+/* ---------- Excel import ---------- */
+const HEADER_MAP = {
+  code: ['كود الموظف','رمز الموظف','كود','code','employee code'],
+  name: ['اسم الموظف','الاسم','name'],
+  date: ['التاريخ','date'],
+  status: ['الحالة','status'],
+  checkin: ['وقت الحضور','الحضور','checkin','check in','time in'],
+  checkout: ['وقت الانصراف','الانصراف','checkout','check out','time out'],
+  leaveType: ['نوع الإجازة','leave type'],
+  leaveApproved: ['اعتماد الإجازة','leave approved'],
+  leaveApprovedBy: ['معتمِد الإجازة','leave approved by'],
+  leaveNote: ['ملاحظة الإجازة','leave note'],
+  absenceApproved: ['اعتماد الغياب','absence approved'],
+  absenceApprovedBy: ['معتمِد الغياب','absence approved by'],
+  absenceNote: ['ملاحظة الغياب','absence note'],
+  delayApproved: ['اعتماد التأخير','delay approved'],
+  delayApprovedBy: ['معتمِد التأخير','delay approved by'],
+  delayNote: ['ملاحظة التأخير','delay note'],
+  delayExcluded: ['استثناء التأخير من الالتزام','delay excluded from compliance'],
+  delayMinutes: ['مدة التأخير المعتمدة','approved delay minutes'],
+  earlyLeaveApproved: ['اعتماد الخروج المبكر','early leave approved'],
+  earlyLeaveApprovedBy: ['معتمِد الخروج المبكر','early leave approved by'],
+  earlyLeaveNote: ['ملاحظة الخروج المبكر','early leave note'],
+  earlyLeaveExcluded: ['استثناء الخروج المبكر من الالتزام','early leave excluded from compliance'],
+  earlyLeaveMinutes: ['مدة الخروج المبكر المعتمدة','approved early leave minutes']
+};
+// Exits during the shift: up to MAX_IMPORT_EXITS per row, numbered columns ("وقت الخروج 1", ...).
+const MAX_IMPORT_EXITS = 3;
+const exitHeaders = n=> ({out:[`وقت الخروج ${n}`, `exit ${n} out`], back:[`وقت العودة ${n}`, `exit ${n} back`],
+  approved:[`اعتماد الخروج ${n}`, `exit ${n} approved`], by:[`معتمِد الخروج ${n}`, `exit ${n} approved by`], note:[`ملاحظة الخروج ${n}`, `exit ${n} note`]});
+const STATUS_MAP = {'حاضر':'present','present':'present','غائب':'absent','غياب':'absent','absent':'absent',
+  'اجازة':'leave','إجازة':'leave','leave':'leave','عطلة':'holiday','عطلة رسمية':'holiday','holiday':'holiday'};
+const LEAVE_TYPE_MAP = {
+  'سنوية':'annual','اجازة سنوية':'annual','إجازة سنوية':'annual','annual':'annual',
+  'بدون مرتب':'unpaid','اجازة بدون مرتب':'unpaid','إجازة بدون مرتب':'unpaid','unpaid':'unpaid',
+  'اضطرارية':'emergency','اجازة اضطرارية':'emergency','إجازة اضطرارية':'emergency','emergency':'emergency',
+  'مرضية':'sick','اجازة مرضية':'sick','إجازة مرضية':'sick','sick':'sick'
+};
+function toBool(v){
+  const s = String(v).trim().toLowerCase();
+  return ['نعم','yes','1','true','معتمد','معتمدة','صح'].includes(s);
+}
+function findVal(row, keys){
+  const rowKeys = Object.keys(row);
+  for(const k of keys){
+    const hit = rowKeys.find(rk=> rk.trim().toLowerCase() === k.toLowerCase());
+    if(hit!==undefined && String(row[hit]).trim()!=='') return String(row[hit]).trim();
+  }
+  return '';
+}
+// Accepts: Excel date serials (real date cells), yyyy-mm-dd / yyyy/mm/dd, and d/m/yyyy (day first).
+// Ambiguous free text is rejected rather than guessed. Arabic-Indic digits are accepted.
+function normalizeDate(v){
+  const s = toLatinDigits(String(v==null?'':v).trim());
+  if(!s) return null;
+  let y, m, d, mt;
+  if(/^\d+(\.\d+)?$/.test(s)){
+    const n = Number(s); if(n<20000 || n>80000) return null; // ~1954..2119
+    const p = XLSX.SSF.parse_date_code(n); y=p.y; m=p.m; d=p.d;
+  } else if((mt = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/))){ y=+mt[1]; m=+mt[2]; d=+mt[3]; }
+  else if((mt = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/))){ d=+mt[1]; m=+mt[2]; y=+mt[3]; }
+  else return null;
+  const dt = new Date(y, m-1, d);
+  if(dt.getFullYear()!==y || dt.getMonth()!==m-1 || dt.getDate()!==d) return null; // e.g. 31/02
+  return ymd(dt);
+}
+// Accepts: Excel time values (fraction of a day, or a date-time serial), "8:10", "08:10:00", "2:05 PM", "2:05 م".
+function normalizeTime(v){
+  const s = toLatinDigits(String(v==null?'':v).trim()).toLowerCase();
+  if(!s) return '';
+  let h, m, mt;
+  if(/^\d+(\.\d+)?(e-?\d+)?$/.test(s)){
+    const num = Number(s);
+    if(num>=1 && Number.isInteger(num)) return ''; // a bare number like "8" is not a time
+    let total = Math.round((num - Math.floor(num)) * 1440);
+    if(total>=1440) total = 0;
+    h = Math.floor(total/60); m = total%60;
+  } else if((mt = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm|a\.m\.|p\.m\.|ص|م)?$/))){
+    h = +mt[1]; m = +mt[2];
+    const suf = mt[3]||'';
+    if(suf){ if(h<1 || h>12) return ''; const pm = suf.startsWith('p') || suf==='م'; if(pm && h<12) h += 12; if(!pm && h===12) h = 0; }
+  } else return '';
+  if(h>23 || m>59) return '';
+  return pad2(h)+':'+pad2(m);
+}
+function downloadTemplate(){
+  if(typeof XLSX==='undefined'){ alert('مكتبة Excel غير محمّلة. أعد تحميل الصفحة وحاول مرة أخرى.'); return; }
+  const sample = [
+    {'كود الموظف':'EMP001','التاريخ':'2026-09-01','الحالة':'حاضر','وقت الحضور':'08:10','وقت الانصراف':'16:05',
+      'نوع الإجازة':'','اعتماد الإجازة':'','معتمِد الإجازة':'','ملاحظة الإجازة':'',
+      'اعتماد الغياب':'','معتمِد الغياب':'','ملاحظة الغياب':'',
+      'اعتماد التأخير':'لا','معتمِد التأخير':'','ملاحظة التأخير':'ازدحام مروري','استثناء التأخير من الالتزام':'','مدة التأخير المعتمدة':'',
+      'اعتماد الخروج المبكر':'لا','معتمِد الخروج المبكر':'','ملاحظة الخروج المبكر':'','استثناء الخروج المبكر من الالتزام':'','مدة الخروج المبكر المعتمدة':''},
+    {'كود الموظف':'EMP001','التاريخ':'2026-09-02','الحالة':'إجازة','وقت الحضور':'','وقت الانصراف':'',
+      'نوع الإجازة':'سنوية','اعتماد الإجازة':'نعم','معتمِد الإجازة':'مدير الموارد البشرية','ملاحظة الإجازة':'',
+      'اعتماد الغياب':'','معتمِد الغياب':'','ملاحظة الغياب':'',
+      'اعتماد التأخير':'','معتمِد التأخير':'','ملاحظة التأخير':'','استثناء التأخير من الالتزام':'','مدة التأخير المعتمدة':'',
+      'اعتماد الخروج المبكر':'','معتمِد الخروج المبكر':'','ملاحظة الخروج المبكر':'','استثناء الخروج المبكر من الالتزام':'','مدة الخروج المبكر المعتمدة':''},
+    {'كود الموظف':'EMP001','التاريخ':'2026-09-03','الحالة':'غائب','وقت الحضور':'','وقت الانصراف':'',
+      'نوع الإجازة':'','اعتماد الإجازة':'','معتمِد الإجازة':'','ملاحظة الإجازة':'',
+      'اعتماد الغياب':'لا','معتمِد الغياب':'','ملاحظة الغياب':'بدون إخطار مسبق',
+      'اعتماد التأخير':'','معتمِد التأخير':'','ملاحظة التأخير':'','استثناء التأخير من الالتزام':'','مدة التأخير المعتمدة':'',
+      'اعتماد الخروج المبكر':'','معتمِد الخروج المبكر':'','ملاحظة الخروج المبكر':'','استثناء الخروج المبكر من الالتزام':'','مدة الخروج المبكر المعتمدة':''}
+  ];
+  // Exit columns (1..3); the first sample row shows one approved exit during the shift.
+  sample.forEach((row, i)=>{
+    for(let n=1; n<=MAX_IMPORT_EXITS; n++){
+      const first = i===0 && n===1;
+      row[`وقت الخروج ${n}`] = first ? '10:30' : '';
+      row[`وقت العودة ${n}`] = first ? '11:15' : '';
+      row[`اعتماد الخروج ${n}`] = first ? 'نعم' : '';
+      row[`معتمِد الخروج ${n}`] = first ? 'مدير القسم' : '';
+      row[`ملاحظة الخروج ${n}`] = first ? 'مراجعة مصرف' : '';
+    }
+  });
+  const ws = XLSX.utils.json_to_sheet(sample);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'حركات');
+  saveXlsx(wb, 'attendance-import-template.xlsx');
+}
+function importExcel(evt){
+  const file = evt.target.files[0]; if(!file) return;
+  if(typeof XLSX==='undefined'){ alert('مكتبة Excel غير محمّلة. أعد تحميل الصفحة وحاول مرة أخرى.'); evt.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = e=>{
+    let wb;
+    // Read raw serial numbers (no cellDates): JS Date objects created by the parser are shifted by the
+    // local time zone, and their string form broke both the date and the time parsing.
+    try{ wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'}); }
+    catch(err){ alert('تعذر قراءة الملف'); return; }
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    let added=0, updated=0, skipped=0; const errors=[];
+    rows.forEach((row, idx)=>{
+      const rowNum = idx+2; // account for header row
+      const code = findVal(row, HEADER_MAP.code);
+      const nameVal = findVal(row, HEADER_MAP.name);
+      let emp = null;
+      if(code) emp = employees.find(e=>e.code && e.code===code);
+      if(!emp && nameVal) emp = employees.find(e=>e.name.trim()===nameVal.trim());
+      if(!emp){ errors.push(`الصف ${rowNum}: لم يتم العثور على موظف مطابق (كود: "${code||'—'}", اسم: "${nameVal||'—'}")`); skipped++; return; }
+
+      const dateVal = normalizeDate(findVal(row, HEADER_MAP.date));
+      if(!dateVal){ errors.push(`الصف ${rowNum}: تاريخ غير صالح`); skipped++; return; }
+      const dow = new Date(dateVal+'T00:00:00').getDay();
+      if(dow===5){ errors.push(`الصف ${rowNum}: تم تجاهله — يوم جمعة`); skipped++; return; }
+      if(emp.startDate && dateVal < emp.startDate) errors.push(`الصف ${rowNum}: تنبيه — التاريخ ${dateVal} قبل تاريخ مباشرة ${emp.name} (تم الاستيراد)`);
+
+      const statusRaw = findVal(row, HEADER_MAP.status).trim().toLowerCase();
+      const status = STATUS_MAP[statusRaw] || (statusRaw? null : 'present');
+      if(!status){ errors.push(`الصف ${rowNum}: حالة غير معروفة "${statusRaw}"`); skipped++; return; }
+
+      let checkIn = '', checkOut = '';
+      let leaveType = '', leaveApproved = false, leaveApprovedBy = '', leaveNote = '';
+      let absenceApproved = false, absenceApprovedBy = '', absenceNote = '';
+      let delayApproved = false, delayApprovedBy = '', delayNote = '', delayExcluded = false, delayMinutes = 0;
+      let earlyLeaveApproved = false, earlyLeaveApprovedBy = '', earlyLeaveNote = '', earlyLeaveExcluded = false, earlyLeaveMinutes = 0;
+      let exits = [], exitError = '';
+
+      if(status==='present'){
+        checkIn = normalizeTime(findVal(row, HEADER_MAP.checkin));
+        checkOut = normalizeTime(findVal(row, HEADER_MAP.checkout));
+        if(!checkIn || !checkOut){ errors.push(`الصف ${rowNum}: حالة "حاضر" بدون وقت حضور/انصراف كامل أو بصيغة غير مفهومة`); skipped++; return; }
+        if(toMinutes(checkOut) <= toMinutes(checkIn)){ errors.push(`الصف ${rowNum}: وقت الانصراف (${checkOut}) ليس بعد وقت الحضور (${checkIn})`); skipped++; return; }
+        delayApproved = toBool(findVal(row, HEADER_MAP.delayApproved));
+        delayApprovedBy = findVal(row, HEADER_MAP.delayApprovedBy);
+        delayNote = findVal(row, HEADER_MAP.delayNote);
+        delayExcluded = delayApproved && toBool(findVal(row, HEADER_MAP.delayExcluded));
+        delayMinutes = delayApproved ? (Math.max(0, Math.round(Number(findVal(row, HEADER_MAP.delayMinutes)))) || 0) : 0;
+        earlyLeaveApproved = toBool(findVal(row, HEADER_MAP.earlyLeaveApproved));
+        earlyLeaveApprovedBy = findVal(row, HEADER_MAP.earlyLeaveApprovedBy);
+        earlyLeaveNote = findVal(row, HEADER_MAP.earlyLeaveNote);
+        earlyLeaveExcluded = earlyLeaveApproved && toBool(findVal(row, HEADER_MAP.earlyLeaveExcluded));
+        earlyLeaveMinutes = earlyLeaveApproved ? (Math.max(0, Math.round(Number(findVal(row, HEADER_MAP.earlyLeaveMinutes)))) || 0) : 0;
+        for(let n=1; n<=MAX_IMPORT_EXITS; n++){
+          const h = exitHeaders(n);
+          const outRaw = findVal(row, h.out), backRaw = findVal(row, h.back);
+          if(!outRaw && !backRaw) continue;
+          const ex = {out:normalizeTime(outRaw), back:normalizeTime(backRaw), approved:toBool(findVal(row, h.approved)),
+            approvedBy:findVal(row, h.by), note:findVal(row, h.note)};
+          if(!ex.out || !ex.back){ exitError = `الخروج ${n}: وقت الخروج أو العودة مفقود أو بصيغة غير مفهومة`; break; }
+          exits.push(ex);
+        }
+        if(!exitError) exitError = validateExits(exits, checkIn, checkOut);
+        if(exitError){ errors.push(`الصف ${rowNum}: ${exitError}`); skipped++; return; }
+      } else if(status==='leave'){
+        const ltRaw = findVal(row, HEADER_MAP.leaveType).trim().toLowerCase();
+        leaveType = LEAVE_TYPE_MAP[ltRaw] || '';
+        if(!leaveType){ errors.push(`الصف ${rowNum}: نوع إجازة غير معروف أو مفقود ("${ltRaw||'—'}") — يجب أن يكون أحد: سنوية، بدون مرتب، اضطرارية، مرضية`); skipped++; return; }
+        const leaveApprovedRaw = findVal(row, HEADER_MAP.leaveApproved);
+        leaveApproved = leaveApprovedRaw ? toBool(leaveApprovedRaw) : true; // default approved if left blank
+        leaveApprovedBy = findVal(row, HEADER_MAP.leaveApprovedBy);
+        leaveNote = findVal(row, HEADER_MAP.leaveNote);
+      } else if(status==='absent'){
+        absenceApproved = toBool(findVal(row, HEADER_MAP.absenceApproved));
+        absenceApprovedBy = findVal(row, HEADER_MAP.absenceApprovedBy);
+        absenceNote = findVal(row, HEADER_MAP.absenceNote);
+      }
+
+      let rec = {id:uid(), empId:emp.id, date:dateVal, status, checkIn, checkOut,
+        leaveType, leaveApproved, leaveApprovedBy, leaveNote,
+        absenceApproved, absenceApprovedBy, absenceNote,
+        delayApproved, delayApprovedBy, delayNote,
+        delayApprovedMinutes: delayMinutes, delayExcludedFromCompliance: delayExcluded,
+        earlyLeaveApproved, earlyLeaveApprovedBy, earlyLeaveNote,
+        earlyLeaveApprovedMinutes: earlyLeaveMinutes, earlyLeaveExcludedFromCompliance: earlyLeaveExcluded,
+        exits: exits.sort((a,b)=> a.out.localeCompare(b.out)), updatedAt:new Date().toISOString()};
+
+      const existed = records.some(r=>r.empId===emp.id && r.date===dateVal);
+      records = records.filter(r=>!(r.empId===emp.id && r.date===dateVal));
+      records.push(rec);
+      if(existed) updated++; else added++;
+    });
+    if(!save(K.records, records)) return;
+    lastImportLog = {added, updated, skipped, errors, total: rows.length};
+    renderImportLog();
+    renderRecords();
+    alert(`اكتمل الاستيراد: ${added} سجل جديد، ${updated} سجل محدّث، ${skipped} سجل متجاهَل. راجع "سجل الفوارق" لمزيد من التفاصيل.`);
+    evt.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function renderImportLog(){
+  if(!lastImportLog) return;
+  document.getElementById('importLogPanel').style.display = 'block';
+  document.getElementById('importKpi').innerHTML = `
+    <div class="kpi ot"><div class="val">${lastImportLog.added}</div><div class="lbl">سجلات جديدة</div></div>
+    <div class="kpi pct"><div class="val">${lastImportLog.updated}</div><div class="lbl">سجلات محدَّثة</div></div>
+    <div class="kpi delay"><div class="val">${lastImportLog.skipped}</div><div class="lbl">سجلات متجاهَلة</div></div>
+    <div class="kpi"><div class="val">${lastImportLog.total}</div><div class="lbl">إجمالي صفوف الملف</div></div>`;
+  document.getElementById('importLogList').innerHTML = lastImportLog.errors.map(e=>`<li>${esc(e)}</li>`).join('') || '<li>لا توجد أخطاء أو صفوف متجاهلة</li>';
+}
+
+/* ---------- Backup (JSON) ---------- */
+// Phones: open the share sheet (WhatsApp, mail, "Save to Files"). Otherwise, or if sharing a file of
+// this type is not allowed, fall back to a normal download. Returns true if the file left the app.
+const isTouchDevice = ()=> window.matchMedia && window.matchMedia('(pointer:coarse)').matches;
+async function saveOrShareFile(blob, name){
+  if(isTouchDevice() && navigator.canShare){
+    const file = new File([blob], name, {type: blob.type});
+    if(navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:name}); return true; }
+      catch(e){ if(e && e.name==='AbortError') return false; /* otherwise fall through to download */ }
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  // Removing the link too early can make the browser drop the file name ("download").
+  setTimeout(()=>{ a.remove(); URL.revokeObjectURL(a.href); }, 4000);
+  return true;
+}
+function saveXlsx(wb, name){
+  const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  return saveOrShareFile(new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), name);
+}
+async function exportData(){
+  const now = new Date().toISOString();
+  const blob = new Blob([JSON.stringify({version:3, exportedAt:now, shifts, employees, records, holidays, settings:{...settings, lastBackupAt:now}}, null, 2)], {type:'application/json'});
+  const sent = await saveOrShareFile(blob, 'attendance-backup-'+ymd(new Date())+'.json');
+  if(!sent) return; // share sheet cancelled: not a backup
+  settings.lastBackupAt = now; save(K.settings, settings);
+  renderBackupBanner(); renderStorageMeter();
+}
+// Reminds the user to export: the data lives only in this browser.
+function renderBackupBanner(){
+  const el = document.getElementById('backupBanner');
+  const last = settings.lastBackupAt ? new Date(settings.lastBackupAt) : null;
+  const days = last ? Math.floor((Date.now() - last.getTime())/86400000) : null;
+  if(!records.length || (days!==null && days<7)){ el.style.display='none'; return; }
+  el.innerHTML = `<span>${days===null ? 'لم تُصدَّر أي نسخة احتياطية بعد.' : `آخر نسخة احتياطية كانت قبل ${days} يوم.`}
+    البيانات محفوظة في هذا المتصفح فقط، وأي مسح لبيانات التصفح يحذفها.</span>
+    <button class="btn small" onclick="exportData()">تصدير نسخة احتياطية الآن</button>`;
+  el.style.display = 'flex';
+}
+const STORAGE_ESTIMATE_CHARS = 5000000; // rough browser limit; real limit varies by browser
+function renderStorageMeter(){
+  let used = 0;
+  for(let i=0; i<localStorage.length; i++){ const k = localStorage.key(i); if(k && k.startsWith('att_')) used += k.length + (localStorage.getItem(k)||'').length; }
+  const pct = Math.min(100, used/STORAGE_ESTIMATE_CHARS*100);
+  const meter = document.getElementById('storageMeter');
+  meter.querySelector('span').style.width = pct.toFixed(1)+'%';
+  meter.classList.toggle('high', pct>=70);
+  document.getElementById('storageText').textContent =
+    `${records.length} سجل — نحو ${(used/1024).toFixed(0)} كيلوبايت (${pct.toFixed(1)}%)` + (pct>=70 ? ' — اقتربت من الحد: صدّر نسخة واحذف السجلات القديمة' : '');
+  if(navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then(p=>{
+    document.getElementById('storageText').textContent += p ? ' — التخزين محمي من الحذف التلقائي' : '';
+  }).catch(()=>{});
+  document.getElementById('lastBackupText').textContent = settings.lastBackupAt
+    ? `آخر نسخة احتياطية: ${ymd(new Date(settings.lastBackupAt))}` : 'لم تُصدَّر أي نسخة احتياطية بعد';
+}
+function importData(evt, mode){
+  const input = evt.target, file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    let data;
+    try{ data = JSON.parse(e.target.result); }catch(err){ alert('ملف غير صالح'); input.value=''; return; }
+    if(!data || !Array.isArray(data.records) || !Array.isArray(data.employees)){ alert('هذا الملف ليس نسخة احتياطية من هذا النظام'); input.value=''; return; }
+    if(mode==='merge') mergeBackup(data); else replaceWithBackup(data);
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+function replaceWithBackup(data){
+  if(!confirm(syncActive()
+    ? 'تنبيه: المزامنة مفعّلة. سيتم استبدال البيانات في السحابة وعلى كل الأجهزة بمحتوى هذه النسخة (وما ليس فيها سيُحذف من الجميع). متابعة؟'
+    : 'سيتم استبدال جميع البيانات الحالية في هذا الجهاز بالنسخة المستوردة. متابعة؟')) return;
+  shifts = data.shifts||[]; employees = migrateEmployees(data.employees||[]); records = migrateRecords(data.records||[]);
+  holidays = Array.isArray(data.holidays) ? data.holidays.filter(h=>h && /^\d{4}-\d{2}-\d{2}$/.test(h.date)) : []; rebuildHolidayMap();
+  const keepBackupDate = settings.lastBackupAt;
+  settings = normalizeSettings(data.settings||{grace:15,countEarlyLeaveInCompliance:true});
+  settings.lastBackupAt = keepBackupDate; // this device's own backup history
+  save(K.shifts,shifts); save(K.employees,employees); save(K.records,records); save(K.settings,settings); save(K.holidays,holidays);
+  applySettingsToInputs();
+  selectedEmpIds = new Set(); localStorage.removeItem(K.reportEmployees); reportSelectionInit = false;
+  renderAll(); renderReport();
+  alert('تم الاستبدال بنجاح');
+}
+// Merge: add what is missing and keep the newer copy of each record. Shifts and employees are matched by
+// id, then by name / employee code, so the same person entered on two devices is not duplicated.
+// Settings stay as they are on this device. Deletions are NOT carried over.
+function mergeBackup(data){
+  if(!confirm('سيتم دمج النسخة مع البيانات الحالية: إضافة الجديد وتحديث السجلات بالأحدث تعديلًا. متابعة؟'
+    + (syncActive() ? '\nستُرفع النتيجة إلى السحابة وتظهر على كل الأجهزة.' : ''))) return;
+  const st = mergeData(data);
+  if(!st) return;
+  renderAll(); renderReport();
+  alert(`اكتمل الدمج:\n• سجلات جديدة: ${st.added}\n• سجلات حُدّثت بنسخة أحدث: ${st.updated}\n• سجلات أُبقيت كما هي: ${st.kept}\n• موظفون جدد: ${st.employees} — ورديات جديدة: ${st.shifts} — عطل جديدة: ${st.holidays}`
+    + (st.orphan ? `\n• سجلات تجاهلناها لعدم وجود موظفها: ${st.orphan}` : ''));
+}
+// Merges another data set into this device's data and saves it. Returns counts, or null if saving failed.
+function mergeData(data){
+  const st = {shifts:0, employees:0, holidays:0, added:0, updated:0, kept:0, orphan:0};
+  const shiftMap = {};
+  (data.shifts||[]).forEach(sh=>{
+    if(!sh || !sh.id) return;
+    const local = shifts.find(x=>x.id===sh.id) || shifts.find(x=>x.name.trim()===String(sh.name||'').trim());
+    if(local){ shiftMap[sh.id] = local.id; return; }
+    shifts.push(sh); shiftMap[sh.id] = sh.id; st.shifts++;
+  });
+  const empMap = {};
+  migrateEmployees(data.employees||[]).forEach(em=>{
+    if(!em || !em.id) return;
+    const local = employees.find(x=>x.id===em.id)
+      || (em.code && employees.find(x=>x.code && x.code===em.code))
+      || (!em.code && employees.find(x=>!x.code && x.name.trim()===em.name.trim()));
+    if(local){ empMap[em.id] = local.id; return; }
+    em.shiftId = shiftMap[em.shiftId] || em.shiftId;
+    employees.push(em); empMap[em.id] = em.id; st.employees++;
+    if(reportSelectionInit) selectedEmpIds.add(em.id);
+  });
+  (Array.isArray(data.holidays)?data.holidays:[]).forEach(h=>{
+    if(!h || !/^\d{4}-\d{2}-\d{2}$/.test(h.date) || isOfficialHoliday(h.date)) return;
+    holidays.push({id:h.id||uid(), date:h.date, name:String(h.name||'')}); holidayMap.set(h.date, h.name); st.holidays++;
+  });
+  holidays.sort((a,b)=> a.date.localeCompare(b.date));
+  const index = new Map(records.map((r,i)=>[r.empId+'|'+r.date, i]));
+  migrateRecords(data.records||[]).forEach(r=>{
+    const empId = empMap[r.empId];
+    if(!empId){ st.orphan++; return; }
+    r.empId = empId;
+    const key = empId+'|'+r.date;
+    if(!index.has(key)){ records.push(r); index.set(key, records.length-1); st.added++; return; }
+    const i = index.get(key);
+    if((r.updatedAt||'') > (records[i].updatedAt||'')){ r.id = records[i].id; records[i] = r; st.updated++; }
+    else st.kept++;
+  });
+  if(!(save(K.shifts,shifts) && save(K.employees,employees) && save(K.holidays,holidays) && save(K.records,records))) return null;
+  saveSelectedEmp();
+  return st;
+}
+function applySettingsToInputs(){
+  document.getElementById('graceInput').value = settings.grace;
+  document.getElementById('countEarlyLeaveInput').checked = settings.countEarlyLeaveInCompliance;
+  document.getElementById('countAbsenceInput').checked = settings.countUnapprovedAbsenceInCompliance;
+  document.getElementById('countMidExitInput').checked = settings.countMidExitInCompliance;
+}
+
+/* ---------- App: offline cache, updates, install ---------- */
+let pendingWorker = null, updateAccepted = false, deferredInstall = null;
+function showUpdateBanner(worker){ pendingWorker = worker; document.getElementById('updateBanner').style.display = 'flex'; }
+function applyUpdate(){
+  if(!pendingWorker){ location.reload(); return; }
+  updateAccepted = true; pendingWorker.postMessage('SKIP_WAITING');
+}
+if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').then(reg=>{
+      if(reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
+      reg.addEventListener('updatefound', ()=>{
+        const w = reg.installing; if(!w) return;
+        w.addEventListener('statechange', ()=>{ if(w.state==='installed' && navigator.serviceWorker.controller) showUpdateBanner(w); });
+      });
+      // Look for a new version whenever the app comes back to the screen.
+      document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); });
+    }).catch(()=>{});
+    // Reload only after the user accepted an update (not on the very first install).
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(updateAccepted){ updateAccepted = false; location.reload(); } });
+  });
+}
+const isStandalone = ()=> (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true;
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredInstall = e; document.getElementById('installBtn').hidden = false; });
+window.addEventListener('appinstalled', ()=>{ deferredInstall = null; document.getElementById('installBtn').hidden = true; });
+async function installApp(){
+  if(!deferredInstall) return;
+  deferredInstall.prompt();
+  try{ await deferredInstall.userChoice; }catch(e){}
+  deferredInstall = null; document.getElementById('installBtn').hidden = true;
+}
+const isIOS = ()=> /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+function dismissIosHint(){ try{ localStorage.setItem('att_ui_iosHintDismissed','1'); }catch(e){} document.getElementById('iosInstallHint').style.display='none'; }
+function initAppShell(){
+  let dismissed = false; try{ dismissed = localStorage.getItem('att_ui_iosHintDismissed')==='1'; }catch(e){}
+  if(isIOS() && !isStandalone() && !dismissed) document.getElementById('iosInstallHint').style.display = 'flex';
+  // Phones: keep the settings folded so the tabs are visible right away.
+  if(window.matchMedia && window.matchMedia('(max-width:700px)').matches) document.getElementById('settingsBox').open = false;
+  // Ask the browser not to clear this app's storage when the device is low on space.
+  if(navigator.storage && navigator.storage.persist && records.length) navigator.storage.persist().then(renderStorageMeter).catch(()=>{});
+}
+
+/* =====================================================================
+   Cloud sync (Supabase)
+   - Every save() is compared with the last synced state ("shadow"); differences go to an "outbox".
+   - The outbox is pushed when online; then changes from other devices are pulled and applied.
+   - Works offline: changes wait in the outbox. Deletes are synced as "deleted" markers.
+   - Same item changed on two devices: the one saved to the server last wins.
+   ===================================================================== */
+const SYNC_LS = {cursor:'att_sync_cursor', shadow:'att_sync_shadow', outbox:'att_sync_outbox', user:'att_sync_user'};
+const SYNC_KEY_TO_COLLECTION = {[K.shifts]:'shifts', [K.employees]:'employees', [K.records]:'records', [K.holidays]:'holidays', [K.settings]:'settings'};
+const SYNC_SETTING_FIELDS = ['grace','countEarlyLeaveInCompliance','countUnapprovedAbsenceInCompliance','countMidExitInCompliance'];
+const SYNC_OVERLAP_MS = 60000; // re-read the last minute on every pull, in case a save committed late
+const lsGet = (k, fb)=>{ try{ const v = localStorage.getItem(k); return v==null ? fb : JSON.parse(v); }catch(e){ return fb; } };
+const lsSet = (k, v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } };
+const sync = {
+  enabled:false, api:null, user:lsGet(SYNC_LS.user, null), state:'off', message:'',
+  shadow:lsGet(SYNC_LS.shadow, {}), outbox:lsGet(SYNC_LS.outbox, {}), cursor:lsGet(SYNC_LS.cursor, ''),
+  applying:false, busy:false, again:false, flushTimer:null, pullTimer:null, unsubscribe:null, seq:Date.now(), lastOk:null
+};
+const syncActive = ()=> sync.enabled && !!sync.user;
+const syncReadOnly = ()=> syncActive() && sync.user.role==='viewer';
+const pendingCount = ()=> Object.keys(sync.outbox).length;
+// Short, stable fingerprint of an item (FNV-1a).
+function fp(obj){ const s = JSON.stringify(obj); let h = 0x811c9dc5; for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h>>>0).toString(36) + s.length.toString(36); }
+// The items of one collection as {docId: data}. Records use "employee|date" so a day is one item everywhere.
+function collectionDocs(c){
+  const out = {};
+  if(c==='shifts') shifts.forEach(x=>{ out[x.id] = x; });
+  else if(c==='employees') employees.forEach(x=>{ out[x.id] = x; });
+  else if(c==='records') records.forEach(x=>{ out[x.empId+'|'+x.date] = x; });
+  else if(c==='holidays') holidays.forEach(x=>{ out[x.date] = x; });
+  else if(c==='settings'){ const d = {}; SYNC_SETTING_FIELDS.forEach(f=>d[f]=settings[f]); out.main = d; }
+  return out;
+}
+function persistSyncState(){ lsSet(SYNC_LS.shadow, sync.shadow); lsSet(SYNC_LS.outbox, sync.outbox); lsSet(SYNC_LS.cursor, sync.cursor); }
+// Called by save(): queue what changed in this collection since the last synced state.
+function syncTrack(storageKey){
+  const c = SYNC_KEY_TO_COLLECTION[storageKey];
+  if(!c || !syncActive() || sync.applying || syncReadOnly() || sync.cursor==='') return;
+  const docs = collectionDocs(c), sh = sync.shadow[c] || (sync.shadow[c] = {});
+  let changed = 0;
+  for(const id in docs){
+    const h = fp(docs[id]);
+    if(sh[id]!==h){ sh[id] = h; sync.outbox[c+'\u0001'+id] = {collection:c, id, data:docs[id], deleted:false, v:++sync.seq}; changed++; }
+  }
+  for(const id in sh){
+    if(!(id in docs)){ delete sh[id]; sync.outbox[c+'\u0001'+id] = {collection:c, id, data:null, deleted:true, v:++sync.seq}; changed++; }
+  }
+  if(!changed) return;
+  persistSyncState();
+  renderSyncStatus();
+  clearTimeout(sync.flushTimer); sync.flushTimer = setTimeout(syncNow, 800);
+}
+// Applies items from the server. Local changes still waiting to be sent win (they will be sent next).
+function applyRemoteRows(rows){
+  if(!rows.length) return false;
+  const touched = new Set(), newEmployeeIds = [];
+  sync.applying = true;
+  try{
+    const idx = {
+      shifts: new Map(shifts.map((x,i)=>[x.id,i])), employees: new Map(employees.map((x,i)=>[x.id,i])),
+      records: new Map(records.map((x,i)=>[x.empId+'|'+x.date,i])), holidays: new Map(holidays.map((x,i)=>[x.date,i]))
+    };
+    const arr = {shifts, employees, records, holidays};
+    const removed = {shifts:new Set(), employees:new Set(), records:new Set(), holidays:new Set()};
+    for(const row of rows){
+      const c = row.collection, id = row.id;
+      if(sync.outbox[c+'\u0001'+id]) continue;
+      const sh = sync.shadow[c] || (sync.shadow[c] = {});
+      if(c==='settings'){
+        if(row.deleted || !row.data) continue;
+        const d = {}; SYNC_SETTING_FIELDS.forEach(f=>{ d[f] = row.data[f]!==undefined ? row.data[f] : settings[f]; });
+        if(sh.main===fp(d)) continue;
+        Object.assign(settings, d); sh.main = fp(d); touched.add('settings'); continue;
+      }
+      if(!idx[c]) continue;
+      if(row.deleted){
+        if(idx[c].has(id)){ removed[c].add(idx[c].get(id)); touched.add(c); }
+        delete sh[id]; continue;
+      }
+      let item = row.data;
+      if(c==='records'){ item = migrateRecords([item])[0]; if(!item.id) item.id = uid(); }
+      else if(c==='employees') item = migrateEmployees([item])[0];
+      else if(c==='holidays') item = {id:item.id||uid(), date:id, name:String(item.name||'')};
+      const h = fp(item);
+      if(sh[id]===h && idx[c].has(id)) continue;
+      if(idx[c].has(id)){ const i = idx[c].get(id); removed[c].delete(i); arr[c][i] = item; }
+      else { arr[c].push(item); idx[c].set(id, arr[c].length-1); if(c==='employees') newEmployeeIds.push(id); }
+      sh[id] = h; touched.add(c);
+    }
+    for(const c of Object.keys(removed)){
+      if(!removed[c].size) continue;
+      const keep = arr[c].filter((_, i)=> !removed[c].has(i));
+      if(c==='shifts') shifts = keep; else if(c==='employees') employees = keep;
+      else if(c==='records') records = keep; else holidays = keep;
+    }
+    if(touched.has('holidays')){ holidays.sort((a,b)=>a.date.localeCompare(b.date)); rebuildHolidayMap(); }
+    if(newEmployeeIds.length && reportSelectionInit){ newEmployeeIds.forEach(id=>selectedEmpIds.add(id)); saveSelectedEmp(); }
+    const keyOf = {shifts:K.shifts, employees:K.employees, records:K.records, holidays:K.holidays, settings:K.settings};
+    touched.forEach(c=> save(keyOf[c], {shifts, employees, records, holidays, settings}[c]));
+  } finally { sync.applying = false; }
+  persistSyncState();
+  if(touched.size) refreshAfterRemote(touched);
+  return touched.size>0;
+}
+function refreshAfterRemote(touched){
+  if(touched.has('settings')) applySettingsToInputs();
+  if(touched.has('employees')){ selectedEmpIds.forEach(id=>{ if(!employees.some(e=>e.id===id)) selectedEmpIds.delete(id); }); }
+  renderShifts(); renderShiftOptions(); renderHolidays(); renderEmployees(); renderEmployeeOptions(); renderRecords();
+  if(document.getElementById('tab-report').style.display!=='none'){ renderEmpChecklist(); renderReport(); }
+  renderStorageMeter();
+}
+// Reads all server changes after the cursor, page by page. Timestamps are kept as the exact text the server
+// sent (microseconds); turning them into JS dates would round them and could re-read pages forever.
+async function pullRows(since){
+  const all = []; let s = since, ac = '', ai = '', guard = 0;
+  while(guard++ < 500){
+    const page = await sync.api.pull(s, ac, ai);
+    all.push(...page);
+    if(page.length < 1000) break;
+    const last = page[page.length-1]; s = last.updated_at; ac = last.collection; ai = last.id;
+  }
+  return all;
+}
+async function pushOutbox(){
+  const entries = Object.entries(sync.outbox);
+  for(let i=0; i<entries.length; i+=500){
+    const chunk = entries.slice(i, i+500);
+    await sync.api.push(chunk.map(([,e])=>({collection:e.collection, id:e.id, data:e.data, deleted:e.deleted})));
+    // Remove only what did not change again while it was being sent.
+    chunk.forEach(([k, e])=>{ if(sync.outbox[k] && sync.outbox[k].v===e.v) delete sync.outbox[k]; });
+    persistSyncState();
+  }
+}
+async function pullChanges(){
+  let since = '-infinity';
+  if(sync.cursor && sync.cursor!=='-infinity'){
+    const t = Date.parse(sync.cursor);
+    since = isNaN(t) ? '-infinity' : new Date(t - SYNC_OVERLAP_MS).toISOString();
+  }
+  const rows = await pullRows(since);
+  applyRemoteRows(rows);
+  if(rows.length) sync.cursor = rows[rows.length-1].updated_at;
+  else if(!sync.cursor) sync.cursor = '-infinity';
+  persistSyncState();
+}
+function snapshotData(){ return JSON.parse(JSON.stringify({shifts, employees, records, holidays})); }
+// First sync on this device: decide how local data and cloud data come together.
+async function firstSync(){
+  const rows = (await pullRows('-infinity')).filter(r=>!r.deleted);
+  const cloudHasData = rows.some(r=>r.collection!=='settings');
+  const localHasData = !!(shifts.length || employees.length || records.length || holidays.length);
+  let mode = !cloudHasData ? 'upload' : (!localHasData ? 'cloud' : null);
+  if(!mode){
+    mode = await askChoice('توجد بيانات على هذا الجهاز وفي السحابة',
+      `على هذا الجهاز: ${employees.length} موظف و${records.length} سجل.\nفي السحابة: ${rows.filter(r=>r.collection==='employees').length} موظف و${rows.filter(r=>r.collection==='records').length} سجل.\n\nيُنصح بتصدير نسخة احتياطية من هذا الجهاز أولًا (تبويب الاستيراد والنسخ الاحتياطي).`,
+      [{id:'merge', label:'دمج بيانات هذا الجهاز مع السحابة', primary:true},
+       {id:'cloud', label:'استخدام بيانات السحابة فقط (تُحذف بيانات هذا الجهاز)'},
+       {id:'later', label:'ليس الآن'}]);
+    if(mode==='later'){ setSyncState('paused', 'المزامنة الأولى مؤجلة'); return false; }
+  }
+  sync.shadow = {}; sync.outbox = {};
+  if(mode==='upload'){
+    sync.cursor = rows.length ? rows[rows.length-1].updated_at : '-infinity';
+    [K.shifts, K.employees, K.records, K.holidays, K.settings].forEach(k=> syncTrack(k)); // queue everything
+  } else {
+    const local = snapshotData();
+    shifts = []; employees = []; records = []; holidays = []; rebuildHolidayMap();
+    sync.cursor = '-infinity';
+    applyRemoteRows(rows);
+    sync.cursor = rows.length ? rows[rows.length-1].updated_at : '-infinity';
+    selectedEmpIds = new Set(employees.map(e=>e.id)); saveSelectedEmp();
+    if(mode==='merge') mergeData(local); // differences are queued for upload by save()
+    refreshAfterRemote(new Set(['settings','shifts','employees','records','holidays']));
+  }
+  persistSyncState();
+  return true;
+}
+let syncRetryMs = 0;
+async function syncNow(){
+  if(!syncActive()) return;
+  if(sync.busy){ sync.again = true; return; }
+  if(!navigator.onLine){ setSyncState('offline'); return; }
+  sync.busy = true; setSyncState('syncing');
+  try{
+    if(sync.cursor===''){ const done = await firstSync(); if(!done) return; }
+    if(!syncReadOnly()) await pushOutbox(); else if(pendingCount()){ sync.outbox = {}; persistSyncState(); }
+    await pullChanges();
+    sync.lastOk = new Date(); syncRetryMs = 0;
+    setSyncState(pendingCount() ? 'pending' : 'ok');
+  }catch(e){
+    handleSyncError(e);
+  }finally{
+    sync.busy = false;
+    if(sync.again){ sync.again = false; setTimeout(syncNow, 300); }
+  }
+}
+function handleSyncError(e){
+  const msg = String((e && (e.message || e.error_description || e.msg)) || e || '');
+  const code = String((e && (e.code || e.status)) || '');
+  if(!navigator.onLine || /fetch|network|timeout|Load failed/i.test(msg)){ setSyncState('offline'); scheduleRetry(); return; }
+  if(/JWT|jwt|401|not authenticated|Auth session missing|refresh/i.test(msg+code) || code==='PGRST301'){ setSyncState('auth'); showLogin('انتهت الجلسة — سجّل الدخول مرة أخرى. بياناتك وتغييراتك غير المرفوعة محفوظة على هذا الجهاز.'); return; }
+  if(/not a member/i.test(msg)){ setSyncState('error', 'هذا الحساب لم يعد ضمن المستخدمين المسموح لهم'); return; }
+  if(/read-only/i.test(msg)){ sync.user.role = 'viewer'; lsSet(SYNC_LS.user, sync.user); applyRoleUI(); setSyncState('ok'); return; }
+  setSyncState('error', msg.slice(0, 160)); scheduleRetry();
+}
+function scheduleRetry(){
+  syncRetryMs = Math.min(syncRetryMs ? syncRetryMs*2 : 5000, 120000);
+  clearTimeout(sync.pullTimer); sync.pullTimer = setTimeout(syncNow, syncRetryMs);
+}
+function setSyncState(state, message){ sync.state = state; sync.message = message||''; renderSyncStatus(); }
+function renderSyncStatus(){
+  const b = document.getElementById('syncBadge');
+  if(!sync.enabled){ b.hidden = true; renderSyncPanel(); return; }
+  const n = pendingCount();
+  const st = (sync.state==='ok' && n) ? 'pending' : sync.state;
+  const text = {
+    ok:'☁ متزامن', syncing:'⟳ جارٍ المزامنة…', pending:`⏳ ${n} تغيير بانتظار الرفع`,
+    offline:`📴 بدون اتصال${n? ` — ${n} بانتظار الرفع`:''}`, auth:'🔑 سجّل الدخول للمزامنة',
+    error:'⚠ تعذّرت المزامنة', paused:'⏸ المزامنة متوقفة', off:'☁ غير متصل'
+  }[st] || st;
+  b.hidden = false; b.className = 'sync-badge no-print ' + st; b.textContent = text;
+  b.title = sync.message || '';
+  document.getElementById('appSub').textContent = syncActive()
+    ? `مزامنة سحابية بين الأجهزة — ${sync.user.email}` : 'تخزين محلي في المتصفح — لا يتطلب اتصال بالإنترنت';
+  renderSyncPanel();
+}
+function renderSyncPanel(){
+  const el = document.getElementById('syncPanelBody'); if(!el) return;
+  if(!sync.enabled){
+    el.innerHTML = `<div class="hint">المزامنة غير مفعّلة: البيانات على هذا الجهاز فقط. لتفعيلها اربط مشروع Supabase في ملف <strong>config.js</strong> (راجع README).</div>`;
+    return;
+  }
+  if(!sync.user){ el.innerHTML = `<div class="hint warn">لم يتم تسجيل الدخول.</div><button class="btn" onclick="showLogin()">تسجيل الدخول</button>`; return; }
+  const roleLabel = {admin:'مسؤول', editor:'محرر', viewer:'عرض فقط'}[sync.user.role] || sync.user.role;
+  el.innerHTML = `
+    <table class="stat-table">
+      <tr><td>الحساب</td><td dir="ltr" style="text-align:end;">${esc(sync.user.email)}</td></tr>
+      <tr><td>الصلاحية</td><td>${esc(roleLabel)}</td></tr>
+      <tr><td>الحالة</td><td>${esc(document.getElementById('syncBadge').textContent)}</td></tr>
+      <tr><td>تغييرات بانتظار الرفع</td><td>${pendingCount()}</td></tr>
+      <tr><td>آخر مزامنة ناجحة</td><td>${sync.lastOk ? sync.lastOk.toLocaleTimeString('ar-LY') : '—'}</td></tr>
+    </table>
+    ${sync.message ? `<div class="hint warn" style="margin-top:10px;">${esc(sync.message)}</div>` : ''}
+    <div class="row" style="margin-top:12px;">
+      <button class="btn" onclick="syncNow()">مزامنة الآن</button>
+      <button class="btn secondary" onclick="logout()">تسجيل الخروج</button>
+    </div>
+    <div class="hint" style="margin-top:6px;">تسجيل الخروج يحذف نسخة البيانات من هذا الجهاز فقط؛ تبقى في السحابة.</div>`;
+}
+function openSyncPanel(){ document.querySelector('nav.tabs button[data-tab="data"]').click(); document.getElementById('syncPanel').scrollIntoView({behavior:'smooth'}); }
+function applyRoleUI(){ document.getElementById('readOnlyBanner').style.display = syncReadOnly() ? 'block' : 'none'; }
+// A small dialog with several choices; resolves with the chosen id.
+function askChoice(title, text, buttons){
+  return new Promise(resolve=>{
+    document.getElementById('cm_title').textContent = title;
+    document.getElementById('cm_text').textContent = text;
+    const box = document.getElementById('cm_btns'); box.innerHTML = '';
+    buttons.forEach(b=>{
+      const el = document.createElement('button');
+      el.className = 'btn' + (b.primary ? '' : ' secondary'); el.textContent = b.label; el.dataset.choice = b.id;
+      el.onclick = ()=>{ document.getElementById('choiceModal').style.display = 'none'; resolve(b.id); };
+      box.appendChild(el);
+    });
+    document.getElementById('choiceModal').style.display = 'flex';
+  });
+}
+function showLogin(message){
+  if(!sync.enabled) return;
+  document.getElementById('lg_err').textContent = message || (navigator.onLine ? '' : 'تحتاج اتصالًا بالإنترنت لتسجيل الدخول.');
+  if(sync.user) document.getElementById('lg_email').value = sync.user.email;
+  document.getElementById('loginOverlay').style.display = 'flex';
+}
+async function doLogin(){
+  const email = document.getElementById('lg_email').value.trim().toLowerCase();
+  const pass = document.getElementById('lg_pass').value;
+  const err = document.getElementById('lg_err'), btn = document.getElementById('lg_btn');
+  if(!email || !pass){ err.textContent = 'أدخل البريد وكلمة المرور'; return; }
+  btn.disabled = true; err.textContent = 'جارٍ الدخول…';
+  try{
+    const signedEmail = (await sync.api.signIn(email, pass)).toLowerCase();
+    const role = await sync.api.myRole();
+    if(!role){ await sync.api.signOut(); err.textContent = 'هذا البريد غير مضاف إلى قائمة المستخدمين المسموح لهم. اطلب من المسؤول إضافته.'; return; }
+    // A different person on this device: start from a clean sync state (local data is kept and merged on first sync).
+    if(sync.user && sync.user.email!==signedEmail){ sync.cursor = ''; sync.shadow = {}; sync.outbox = {}; persistSyncState(); }
+    sync.user = {email:signedEmail, role}; lsSet(SYNC_LS.user, sync.user);
+    document.getElementById('lg_pass').value = '';
+    document.getElementById('loginOverlay').style.display = 'none';
+    applyRoleUI(); startRealtime(); renderSyncStatus();
+    await syncNow();
+  }catch(e){
+    const m = String((e && e.message) || e);
+    err.textContent = /invalid login|credentials/i.test(m) ? 'البريد أو كلمة المرور غير صحيحة'
+      : (!navigator.onLine || /fetch|network/i.test(m)) ? 'لا يوجد اتصال بالإنترنت' : ('تعذّر الدخول: ' + m.slice(0,120));
+  }finally{ btn.disabled = false; }
+}
+async function logout(){
+  if(pendingCount()){
+    await syncNow();
+    if(pendingCount() && !confirm(`يوجد ${pendingCount()} تغيير لم يُرفع بعد وسيُفقد عند الخروج. الخروج على أي حال؟`)) return;
+  }
+  if(!confirm('تسجيل الخروج من هذا الجهاز؟ ستُحذف نسخة البيانات المحلية، وتبقى في السحابة.')) return;
+  try{ await sync.api.signOut(); }catch(e){}
+  if(sync.unsubscribe) try{ sync.unsubscribe(); }catch(e){}
+  const keys = []; for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k && k.startsWith('att_') && k!=='att_ui_iosHintDismissed') keys.push(k); }
+  keys.forEach(k=>localStorage.removeItem(k));
+  location.reload();
+}
+function startRealtime(){
+  if(sync.unsubscribe) return;
+  try{ sync.unsubscribe = sync.api.subscribe(()=>{ clearTimeout(sync.pullTimer); sync.pullTimer = setTimeout(syncNow, 500); }); }catch(e){}
+}
+// Real backend: Supabase. (Tests can provide window.__attCloudFactory instead.)
+function supabaseApi(cfg){
+  const client = window.supabase.createClient(cfg.url, cfg.key, {auth:{persistSession:true, autoRefreshToken:true, storageKey:'att_sb_auth'}});
+  const check = ({data, error})=>{ if(error) throw error; return data; };
+  return {
+    async signIn(email, password){ const d = check(await client.auth.signInWithPassword({email, password})); return d.user.email; },
+    async signOut(){ await client.auth.signOut({scope:'local'}); },
+    async myRole(){ return check(await client.rpc('att_my_role')); },
+    async push(docs){ return check(await client.rpc('att_sync_push', {p_docs:docs})); },
+    async pull(since, afterCollection, afterId){
+      return check(await client.rpc('att_sync_pull', {p_since:since, p_after_collection:afterCollection, p_after_id:afterId, p_limit:1000})) || [];
+    },
+    subscribe(onChange){
+      const ch = client.channel('att-docs').on('postgres_changes', {event:'*', schema:'public', table:'att_docs'}, ()=>onChange()).subscribe();
+      return ()=> client.removeChannel(ch);
+    }
+  };
+}
+function initSync(){
+  const cfg = window.ATTENDANCE_CLOUD || {};
+  if(window.__attCloudFactory) sync.api = window.__attCloudFactory();
+  else if(cfg.url && cfg.key && window.supabase){
+    try{ sync.api = supabaseApi(cfg); }catch(e){ console.error(e); }
+  }
+  sync.enabled = !!sync.api;
+  if(!sync.enabled){ renderSyncStatus(); return; }
+  if(!sync.user){ setSyncState('auth'); showLogin(); return; }
+  applyRoleUI(); startRealtime();
+  setSyncState(navigator.onLine ? 'syncing' : 'offline');
+  syncNow();
+  window.addEventListener('online', ()=>syncNow());
+  window.addEventListener('offline', ()=>setSyncState('offline'));
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') syncNow(); });
+  setInterval(()=>{ if(document.visibilityState==='visible') syncNow(); }, 60000); // fallback if live updates are blocked
+}
+
+function renderAll(){
+  renderShifts(); renderShiftOptions(); renderHolidays(); renderEmployees(); renderEmployeeOptions(); renderRecords();
+  renderEmpChecklist(); renderStorageMeter();
+}
+// Keep the storage meter fresh whenever the data tab is opened.
+document.querySelector('nav.tabs button[data-tab="data"]').addEventListener('click', renderStorageMeter);
+
+document.getElementById('rc_date').value = ymd(new Date());
+initAppShell();
+setThisMonth();
+toggleStatusFields();
+syncApprovalState('delay'); syncApprovalState('earlyLeave');
+renderAll();
+initSync();
+</script>
+</body>
+</html>
